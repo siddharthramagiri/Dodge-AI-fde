@@ -27,6 +27,12 @@ def test_post_method() :
     return jsonify({
         "request" : question
     })
+    
+@app.route("/", methods=["GET"])
+def health_check() :
+    return jsonify({
+        "status" : "OK"
+    })
 
 @app.route("/query", methods=["POST", "OPTIONS"])
 def query_endpoint():
