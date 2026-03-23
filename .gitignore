@@ -1,0 +1,35 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Root logs / temp
+*.log
+*.tmp
+*.swp
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.example.env
+
+# Python backend
+backend-v2/.venv/
+backend-v2/__pycache__/
+backend-v2/*.pyc
+backend-v2/.pytest_cache/
+backend-v2/.mypy_cache/
+backend-v2/.ruff_cache/
+
+# Node / Next frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+
+# Build artifacts
+dist/
+build/
+

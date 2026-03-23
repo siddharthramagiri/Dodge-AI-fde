@@ -1,0 +1,361 @@
+{
+"billing_document_cancellations" :
+    {
+        "billingDocument": "90504274", 
+        "billingDocumentType": "F2", 
+        "creationDate": "2025-04-03T00:00:00.000Z", 
+        "creationTime": {
+            "hours": 11, 
+            "minutes": 31, 
+            "seconds": 13
+        }, 
+        "lastChangeDateTime": "2025-07-24T11:42:30.485Z", 
+        "billingDocumentDate": "2025-04-02T00:00:00.000Z", 
+        "billingDocumentIsCancelled": true, 
+        "cancelledBillingDocument": "", 
+        "totalNetAmount": "253.39", 
+        "transactionCurrency": "INR", 
+        "companyCode": "ABCD", 
+        "fiscalYear": "2025", 
+        "accountingDocument": "9400000275", 
+        "soldToParty": "320000083"
+    },
+
+"billing_document_headers" :
+    {
+        "billingDocument": "90504248", 
+        "billingDocumentType": "F2", 
+        "creationDate": "2025-04-03T00:00:00.000Z", 
+        "creationTime": {
+            "hours": 11, 
+            "minutes": 31, 
+            "seconds": 13
+        }, 
+        "lastChangeDateTime": "2025-04-03T11:31:37.331Z", 
+        "billingDocumentDate": "2025-04-02T00:00:00.000Z", 
+        "billingDocumentIsCancelled": false, 
+        "cancelledBillingDocument": "", 
+        "totalNetAmount": "216.1", 
+        "transactionCurrency": "INR", 
+        "companyCode": "ABCD", 
+        "fiscalYear": "2025", 
+        "accountingDocument": "9400000249", 
+        "soldToParty": "320000083"
+    },
+
+"billing_document_items" :
+    { 
+        "billingDocument": "90504298", 
+        "billingDocumentItem": "10", 
+        "material": "B8907367041603", 
+        "billingQuantity": "1", 
+        "billingQuantityUnit": "PC", 
+        "netAmount": "533.05", 
+        "transactionCurrency": "INR", 
+        "referenceSdDocument": "80738109", 
+        "referenceSdDocumentItem": "10"
+    },
+
+"business_partner_addresses" :
+    {
+        "businessPartner": "310000108", 
+        "addressId": "4605", 
+        "validityStartDate": "2024-04-16T00:00:00.000Z", 
+        "validityEndDate": "9999-12-31T23:59:59.000Z", 
+        "addressUuid": "af79c9a3-05bf-1ede-bef9-0812e7757c0e", 
+        "addressTimeZone": "INDIA",
+        "cityName": "Lake Christopher", 
+        "country": "IN", 
+        "poBox": "", 
+        "poBoxDeviatingCityName": "", 
+        "poBoxDeviatingCountry": "", 
+        "poBoxDeviatingRegion": "", 
+        "poBoxIsWithoutNumber": false, 
+        "poBoxLobbyName": "", 
+        "poBoxPostalCode": "", 
+        "postalCode": "18589", 
+        "region": "TS", 
+        "streetName": "0171 Rebecca Glen", 
+        "taxJurisdiction": "", 
+        "transportZone": ""
+    },
+
+"business_partners" :
+    {
+        "businessPartner": "310000108", 
+        "customer": "310000108", 
+        "businessPartnerCategory": "2", 
+        "businessPartnerFullName": "Cardenas, Parker and Avila", 
+        "businessPartnerGrouping": "Y101", 
+        "businessPartnerName": "Cardenas, Parker and Avila", 
+        "correspondenceLanguage": "", 
+        "createdByUser": "USER750", 
+        "creationDate": "2024-04-16T00:00:00.000Z", 
+        "creationTime": {
+            "hours": 13, 
+            "minutes": 36, 
+            "seconds": 43
+        }, 
+        "firstName": "", 
+        "formOfAddress": "0003", 
+        "industry": "", 
+        "lastChangeDate": "2025-06-27T00:00:00.000Z", 
+        "lastName": "", 
+        "organizationBpName1": "Cardenas, Parker and Avila", 
+        "organizationBpName2": "", 
+        "businessPartnerIsBlocked": false, 
+        "isMarkedForArchiving": false
+    },
+
+"customer_company_assignments" :
+    {
+        "customer": "310000108", 
+        "companyCode": "ABCD", 
+        "accountingClerk": "", 
+        "accountingClerkFaxNumber": "", 
+        "accountingClerkInternetAddress": "", 
+        "accountingClerkPhoneNumber": "", 
+        "alternativePayerAccount": "", 
+        "paymentBlockingReason": "", 
+        "paymentMethodsList": "", 
+        "paymentTerms": "", 
+        "reconciliationAccount": "15500010", 
+        "deletionIndicator": false, 
+        "customerAccountGroup": "Y101"
+    },
+
+"customer_sales_area_assignments" :
+    {
+        "customer": "310000108", 
+        "salesOrganization": "ABCD", 
+        "distributionChannel": "05", 
+        "division": "99", 
+        "billingIsBlockedForCustomer": "", 
+        "completeDeliveryIsDefined": false, 
+        "creditControlArea": "", 
+        "currency": "INR", 
+        "customerPaymentTerms": "Z009", 
+        "deliveryPriority": "0", 
+        "incotermsClassification": "FOR", 
+        "incotermsLocation1": "Millerborough", 
+        "salesGroup": "", 
+        "salesOffice": "", 
+        "shippingCondition": "01", 
+        "slsUnlmtdOvrdelivIsAllwd": false, 
+        "supplyingPlant": "", 
+        "salesDistrict": "", 
+        "exchangeRateType": "M"
+    },
+
+"journal_entry_items_accounts_receivable" :
+    {
+        "companyCode": "ABCD", 
+        "fiscalYear": "2025", 
+        "accountingDocument": "9400000220", 
+        "glAccount": "15500020", 
+        "referenceDocument": "90504219", 
+        "costCenter": "", 
+        "profitCenter": "ABC001", 
+        "transactionCurrency": "INR", 
+        "amountInTransactionCurrency": "897.03", 
+        "companyCodeCurrency": "INR", 
+        "amountInCompanyCodeCurrency": "897.03", 
+        "postingDate": "2025-04-02T00:00:00.000Z", 
+        "documentDate": "2025-04-02T00:00:00.000Z", 
+        "accountingDocumentType": "RV", 
+        "accountingDocumentItem": "1", 
+        "assignmentReference": "", 
+        "lastChangeDateTime": "2025-07-24T11:43:59.000Z", 
+        "customer": "320000083", 
+        "financialAccountType": "D", 
+        "clearingDate": "2025-04-02T00:00:00.000Z", 
+        "clearingAccountingDocument": "9400635977", 
+        "clearingDocFiscalYear": "2025"
+    },
+
+"outbound_delivery_headers" :
+    {
+        "actualGoodsMovementDate": null, 
+        "actualGoodsMovementTime": {
+            "hours": 0, "minutes": 0, "seconds": 0
+        }, 
+        "creationDate": "2025-03-31T00:00:00.000Z", 
+        "creationTime": {
+            "hours": 6, "minutes": 49, "seconds": 13
+        }, 
+        "deliveryBlockReason": "", 
+        "deliveryDocument": "80737721", 
+        "hdrGeneralIncompletionStatus": "C", 
+        "headerBillingBlockReason": "", 
+        "lastChangeDate": null, 
+        "overallGoodsMovementStatus": "A", 
+        "overallPickingStatus": "C", 
+        "overallProofOfDeliveryStatus": "", 
+        "shippingPoint": "1920"
+    },
+
+"outbound_delivery_items" :
+    {
+        "actualDeliveryQuantity": "1", 
+        "batch": "", 
+        "deliveryDocument": "80738076", 
+        "deliveryDocumentItem": "000010", 
+        "deliveryQuantityUnit": "PC", 
+        "itemBillingBlockReason": "", 
+        "lastChangeDate": null, 
+        "plant": "WB05", 
+        "referenceSdDocument": "740556", 
+        "referenceSdDocumentItem": "000010", 
+        "storageLocation": "5031"
+    },
+
+"payments_accounts_receivable" :
+    {
+        "companyCode": "ABCD", 
+        "fiscalYear": "2025", 
+        "accountingDocument": "9400000220", 
+        "accountingDocumentItem": "1", 
+        "clearingDate": "2025-04-02T00:00:00.000Z", 
+        "clearingAccountingDocument": "9400635977", 
+        "clearingDocFiscalYear": "2025", 
+        "amountInTransactionCurrency": "897.03", 
+        "transactionCurrency": "INR", 
+        "amountInCompanyCodeCurrency": "897.03", 
+        "companyCodeCurrency": "INR", 
+        "customer": "320000083", 
+        "invoiceReference": null, 
+        "invoiceReferenceFiscalYear": null, 
+        "salesDocument": null, 
+        "salesDocumentItem": null, 
+        "postingDate": "2025-04-02T00:00:00.000Z", 
+        "documentDate": "2025-04-02T00:00:00.000Z", 
+        "assignmentReference": null, 
+        "glAccount": "15500020", 
+        "financialAccountType": "D", 
+        "profitCenter": "ABC001", 
+        "costCenter": null
+    },
+
+"plants" :
+    {
+        "plant": "1001", 
+        "plantName": "Lake Christopher Plant", 
+        "valuationArea": "1001", 
+        "plantCustomer": "1001", 
+        "plantSupplier": "1001", 
+        "factoryCalendar": "IN", 
+        "defaultPurchasingOrganization": "", 
+        "salesOrganization": "ABCD", 
+        "addressId": "93", 
+        "plantCategory": "", 
+        "distributionChannel": "80", 
+        "division": "99", 
+        "language": "EN", 
+        "isMarkedForArchiving": false
+    },
+
+"product_descriptions" :
+    {
+        "product": "3001456", 
+        "language": "EN", 
+        "productDescription": "WB-CG CHARCOAL GANG"
+    },
+
+"product_plants" :
+    {
+        "product": "S8907367010814", 
+        "plant": "MP07", 
+        "countryOfOrigin": "", 
+        "regionOfOrigin": "", 
+        "productionInvtryManagedLoc": "", 
+        "availabilityCheckType": "NC", 
+        "fiscalYearVariant": "", 
+        "profitCenter": "ABC001", 
+        "mrpType": "ND"
+    },
+
+"product_storage_locations" :
+    {
+        "product": "B8907367022152", 
+        "plant": "HR05", 
+        "storageLocation": "5066", 
+        "physicalInventoryBlockInd": "", 
+        "dateOfLastPostedCntUnRstrcdStk": null
+    },
+
+"products" :
+    {
+        "product": "3001456", 
+        "productType": "ZPKG", 
+        "crossPlantStatus": "", 
+        "crossPlantStatusValidityDate": null, 
+        "creationDate": "2024-11-26T00:00:00.000Z", 
+        "createdByUser": "USER108", 
+        "lastChangeDate": "2025-09-18T00:00:00.000Z", 
+        "lastChangeDateTime": "2025-09-18T11:51:26.000Z", 
+        "isMarkedForDeletion": false, 
+        "productOldId": "WD-BOX-CG", 
+        "grossWeight": "0.012", 
+        "weightUnit": "KG", 
+        "netWeight": "0.01", 
+        "productGroup": "ZPKG004", 
+        "baseUnit": "PC", 
+        "division": "02", 
+        "industrySector": "M"
+    },
+
+"sales_order_headers" :
+    {
+        "salesOrder": "740506", 
+        "salesOrderType": "OR", 
+        "salesOrganization": "ABCD", 
+        "distributionChannel": "05", 
+        "organizationDivision": "99", 
+        "salesGroup": "", 
+        "salesOffice": "", 
+        "soldToParty": "310000108", 
+        "creationDate": "2025-03-31T00:00:00.000Z", 
+        "createdByUser": "USER786", 
+        "lastChangeDateTime": "2025-03-31T06:42:38.786Z", 
+        "totalNetAmount": "17108.25", 
+        "overallDeliveryStatus": "C", 
+        "overallOrdReltdBillgStatus": "", 
+        "overallSdDocReferenceStatus": "", 
+        "transactionCurrency": "INR", 
+        "pricingDate": "2025-03-31T00:00:00.000Z", 
+        "requestedDeliveryDate": "2025-03-31T00:00:00.000Z", 
+        "headerBillingBlockReason": "", 
+        "deliveryBlockReason": "", 
+        "incotermsClassification": "FOR", 
+        "incotermsLocation1": "Millerborough", 
+        "customerPaymentTerms": "Z009", 
+        "totalCreditCheckStatus": ""
+    },
+
+"sales_order_items" :
+    {
+        "salesOrder": "740506", 
+        "salesOrderItem": "10", 
+        "salesOrderItemCategory": "TAN", 
+        "material": "S8907367001003", 
+        "requestedQuantity": "48", 
+        "requestedQuantityUnit": "PC", 
+        "transactionCurrency": "INR", 
+        "netAmount": "9966.1", 
+        "materialGroup": "ZFG1001", 
+        "productionPlant": "1920", 
+        "storageLocation": "V2S2", 
+        "salesDocumentRjcnReason": "", 
+        "itemBillingBlockReason": ""
+    },
+
+"sales_order_schedule_lines" :
+    {
+        "salesOrder": "740506", 
+        "salesOrderItem": "10", 
+        "scheduleLine": "1", 
+        "confirmedDeliveryDate": "2025-03-31T00:00:00.000Z", 
+        "orderQuantityUnit": "PC", 
+        "confdOrderQtyByMatlAvailCheck": "48"
+    }
+}
