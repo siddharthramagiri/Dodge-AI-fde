@@ -75,5 +75,5 @@ def expand_endpoint(node_id: str):
 
 if __name__ == "__main__":
     # For Next.js dev: frontend calls http://localhost:5000 by default.
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=False)
 
