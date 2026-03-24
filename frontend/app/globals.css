@@ -47,9 +47,38 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-content: space-between;
   padding: 0 14px;
   border-bottom: 1px solid var(--line);
   background: #f9fbfd;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-left {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+}
+
+.github-link {
+  color: #333;
+  transition: color 0.2s ease;
+}
+
+.github-link:hover {
+  color: #000;
 }
 
 .crumb-muted {

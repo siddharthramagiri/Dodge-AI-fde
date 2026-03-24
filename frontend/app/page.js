@@ -7,6 +7,7 @@ import ChatPanel from "@/components/ChatPanel";
 import GraphCanvas from "@/components/GraphCanvas";
 import NodeDetailsCard from "@/components/NodeDetailsCard";
 import { askQuestion, expandNode, fetchGraph } from "@/lib/api";
+import { FaGithub } from "react-icons/fa";
 
 
 const normalizeType = (type = "") =>
@@ -254,9 +255,25 @@ export default function HomePage() {
     <main className="page-root">
       <section className="left-pane">
         <header className="page-header">
-          <span className="crumb-muted">Mapping</span>
-          <span className="crumb-sep">/</span>
-          <strong>Order to Cash</strong>
+          <div className="header-left">
+            <span className="crumb-muted">Mapping</span>
+            <span className="crumb-sep">/</span>
+            <strong>Order to Cash</strong>
+          </div>
+
+          <div className="header-right">
+            <p style={{ color: "grey", fontSize: "12px" }}>
+              sidduramagiri3@gmail.com
+            </p>
+            <a
+              href="https://github.com/siddharthramagiri/Dodge-AI-fde"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="github-link"
+            >
+              <FaGithub size={18} />
+            </a>
+          </div>
         </header>
 
         <GraphCanvas

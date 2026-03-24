@@ -7,6 +7,7 @@ from typing import Optional, List, Dict
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
+from util import notify
 
 import google.generativeai as genai
 from graph_builder import get_graph, make_node_id
@@ -408,6 +409,8 @@ def chat():
             "referenced_nodes": [],
         }), 503
 
+    notify(query)
+    
     try:
         system_prompt = build_system_prompt()
 
