@@ -1,30 +1,5 @@
-## To understand the data First I let the github copilot to go through each and every folder inside the dataset 
-
-**User** 
-
-Go through the folder sap-o2c-data and go through each folder and .jsonl files and just read the files and give me schema of each file with name of folder an filename
-
-**Copiolot**
-
-Great progress: I found the workspace structure and can see there are many subfolders with JSONL parts. Next I’ll collect a complete list of folders and sample files so the schema extraction plan can be precise.
-
-Plan created and ready ✅
-Excellent news: I’ve mapped everything and saved a concrete schema-extraction plan in /memories/session/plan.md. The workspace has 19 subfolders and 49 JSONL files (full list confirmed).
-Next I can execute the plan (script run + summary output) when you confirm.
-
-What I’ve done
-Discovered all directories and file counts
-Created and saved a step-by-step extraction plan
-Included verification and assumptions
-Next step
-Run the extraction procedure (parse each JSONL, infer schema, present folder+filename + field names/types) and return full schema report.
-
-
-
-# Cursor Chats
-
-# Context graph system for SAP Order to Cash
-_Exported on 3/23/2026 at 22:03:16 GMT+5:30 from Cursor (2.6.20)_
+# Context Graph System for SAP Order to Cash
+*Session exported on 3/24/2026 from Cursor (2.6.20)*
 
 ---
 
@@ -32,7 +7,7 @@ _Exported on 3/23/2026 at 22:03:16 GMT+5:30 from Cursor (2.6.20)_
 
 I am building a context graph system with an LLM powered chat interface for a SAP Order to Cash dataset.
 
-The project folder is at D:/Projects/AI/Dodge-AI/ and the dataset is inside a folder called sap-o2c-data within it. The dataset is in JSONL format, one JSON object per line. Each entity has its own folder and each folder may contain multiple part files. The loader must read all part files inside each folder and combine them into one PostgreSQL table.
+The project folder is at D:/Projects/AI/Dodge-AI/ and the dataset is inside a folder called sap-o2c-data within it. The dataset is in JSONL format, one JSON object per line. Each entity has its own folder and each folder may contain multiple part files. The loader must read all part files inside each folder and combine them into one SQLite table.
 
 DATASET FOLDERS
 
@@ -41,227 +16,117 @@ sales_order_headers, sales_order_items, billing_document_headers, billing_docume
 CORE GOAL
 
 Build a system where:
-User → LLM → SQL → PostgreSQL (Neon) → Result → Answer
+User → LLM → SQL → SQLite → Result → Answer
 
 The LLM MUST generate SQL dynamically and all answers must be grounded in database results.
 
-
 DATABASE
 
-Use Neon PostgreSQL.
-Connection string is stored in .env as DATABASE_URL.
-Use psycopg2 to connect.
-All tables must be created in PostgreSQL.
-Use TEXT type for simplicity for all columns.
+Use SQLite. Database file stored as o2c.db in the project root. Use Python's built-in sqlite3 module. No external DB dependencies. Use typed columns — TEXT for identifiers and strings, REAL for amounts and quantities.
 
 CORE TABLE SCHEMAS
 
-sales_order_headers: salesOrder, salesOrderType, soldToParty, creationDate, totalNetAmount, overallDeliveryStatus, transactionCurrency
+sales_order_headers: salesOrder, salesOrderType, soldToParty, creationDate, totalNetAmount REAL, overallDeliveryStatus, transactionCurrency
 
-sales_order_items: salesOrder, salesOrderItem, material, requestedQuantity, netAmount, productionPlant, storageLocation
+sales_order_items: salesOrder, salesOrderItem, material, requestedQuantity REAL, netAmount REAL, productionPlant, storageLocation
 
-billing_document_headers: billingDocument, billingDocumentType, creationDate, totalNetAmount, soldToParty, accountingDocument, fiscalYear, companyCode, billingDocumentIsCancelled
+billing_document_headers: billingDocument, billingDocumentType, creationDate, totalNetAmount REAL, soldToParty, accountingDocument, fiscalYear, companyCode, billingDocumentIsCancelled INTEGER
 
-billing_document_items: billingDocument, billingDocumentItem, salesOrder, salesOrderItem, material, billingQuantity, netAmount
+billing_document_items: billingDocument, billingDocumentItem, salesOrder, salesOrderItem, material, billingQuantity REAL, netAmount REAL
 
-outbound_delivery_headers: deliveryDocument, creationDate, shippingPoint, overallGoodsMovementStatus, overallPickingStatus
+outbound_delivery_headers: outboundDelivery, creationDate, shippingPoint, overallDeliveryStatus, actualGoodsMovementDate
 
-outbound_delivery_items: deliveryDocument, deliveryDocumentItem, salesOrder, salesOrderItem, material, actualDeliveryQuantity
+outbound_delivery_items: outboundDelivery, outboundDeliveryItem, salesOrder, salesOrderItem, material, actualDeliveredQuantityInBaseUnit REAL
 
-payments_accounts_receivable: accountingDocument, accountingDocumentItem, customer, amountInTransactionCurrency, transactionCurrency, postingDate, clearingDate, clearingAccountingDocument
+payments_accounts_receivable: accountingDocument, ledgerGLLineItem, businessPartner, amountInCompanyCodeCurrency REAL, companyCodeCurrency, clearingDate, documentDate
 
-journal_entry_items_accounts_receivable: accountingDocument, accountingDocumentItem, referenceDocument, glAccount, amountInTransactionCurrency, transactionCurrency, postingDate, customer, accountingDocumentType
+journal_entry_items_accounts_receivable: accountingDocument, ledgerGLLineItem, glAccount, businessPartner, amountInCompanyCodeCurrency REAL, postingDate, referenceDocument
 
-business_partners: businessPartner, businessPartnerFullName, businessPartnerType
+business_partners: businessPartner, businessPartnerName, businessPartnerType, country, city
 
-products: material, baseUnit, materialType, materialGroup
+products: product, productType, productGroup, baseUnit, grossWeight REAL, netWeight REAL
 
 KEY RELATIONSHIPS
 
 sales_order_headers → sales_order_items (salesOrder)
-
 sales_order_items → products (material)
-
 billing_document_items → sales_order_items (salesOrder, salesOrderItem)
-
 outbound_delivery_items → sales_order_items (salesOrder, salesOrderItem)
-
 billing_document_headers → journal_entry_items_accounts_receivable (accountingDocument)
-
 billing_document_headers → payments_accounts_receivable (accountingDocument)
-
 billing_document_headers → business_partners (soldToParty)
-
 sales_order_headers → business_partners (soldToParty)
 
 PROJECT STRUCTURE
 
 Dodge-AI/
-backend/
+├── ingest.py
+├── graph_builder.py
 ├── app.py
-├── db.py
-├── create_tables.py
-├── load_data.py
-├── llm.py
-├── query.py
-├── graph.py
+├── requirements.txt
 ├── .env
-
-frontend/
-├── Next.js app (App Router)
-
-sessions/
-README.md
-
+└── o2c.db  ← generated after ingest
 
 BACKEND REQUIREMENTS
 
-db.py
-* Connect to Neon PostgreSQL using psycopg2
-* Use DATABASE_URL from .env
-* Provide get_connection()
-
-create_tables.py
-* Dynamically create ALL tables from schema dictionaries
-* Use TEXT type for all columns
-* Run CREATE TABLE IF NOT EXISTS
-
-load_data.py
+ingest.py
 * Read ALL JSONL files from all folders
+* Flatten nested JSON objects automatically
 * Merge part files into one dataset per table
-* Insert into PostgreSQL
-* Use record.get(field, None)
-* Handle missing fields safely
-* Wrap inserts in try/except to skip bad records
-* Use batch inserts if possible
+* Insert into SQLite using typed schemas
+* Use record.get(field, None) for safe field access
+* Use INSERT OR IGNORE for idempotency
+* Use PRAGMA journal_mode=WAL for performance
 
-query.py
-* Execute SQL queries
-* Add safety checks:
-
-  * Block DROP, DELETE, UPDATE, INSERT
-* Return results as list of dictionaries
-
-llm.py
-
-Use Groq API with model:
-llama3-70b-8192
-
-Function: generate_sql(question)
-
-Prompt must include:
-
-* full schema
-* relationships
-* examples
-
-Rules:
-
-* Return ONLY SQL
-* No markdown
-* No explanation
-* If unrelated → return OFFTOPIC
-
-Then:
-
-* Execute SQL using query.py
-* Format result into natural language
-
-graph.py (OPTIONAL BUT REQUIRED FOR UI)
-
-* Build graph using NetworkX from PostgreSQL data
-* Nodes:
-
-  * id = type + primary key
-  * type
-  * metadata
-* Edges based on relationships
-
-Functions:
-
-* get_graph()
-* get_neighbors(node_id)
-
-### app.py (Flask)
-
-* Enable CORS
+app.py (Flask)
+* Enable CORS via flask-cors
+* All endpoints return pure JSON — no HTML, no templates
+* Preload graph on startup
 
 Endpoints:
+GET  /api/health
+POST /api/set-api-key
+GET  /api/graph/overview
+GET  /api/graph/stats
+GET  /api/graph/node/<node_id>
+GET  /api/graph/expand/<node_id>
+GET  /api/graph/type/<node_type>
+POST /api/chat
+POST /api/sql
 
-POST /query
-Input:
-{ "question": "..." }
+graph_builder.py
+* Build graph using NetworkX from SQLite data
+* Node id = "Type:key"
+* Typed colors and shapes per entity
+* Singleton get_graph() loaded once on startup
+* Functions: to_vis_data(), get_neighbors(), get_stats(), find_nodes_by_type()
 
-Flow:
+LLM
 
-* Call LLM → SQL
-* Validate SQL
-* Execute query
-* Return:
-
-{
-"sql": "...",
-"result": [...],
-"answer": "natural language response"
-}
-
-GET /graph
-
-* Return full graph
-
-GET /expand/<node_id>
-
-* Return neighbors
+Use Google Gemini API with model gemini-2.5-flash.
+API key stored in .env as GEMINI_API_KEY.
+Two-pass approach:
+  Pass 1 → generate SQL
+  Pass 2 → narrate the result in natural language
 
 GUARDRAILS
 
-If LLM returns OFFTOPIC:
-Return:
+Only allow SELECT queries. Block DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE.
+If question is off-topic → return domain-restriction message.
+Auto-append LIMIT 50 if not present.
 
-"This system is designed to answer questions related to the provided dataset only."
+FRONTEND
 
-fRONTEND (Next.js)
-
-Use Next.js (App Router)
-
-Layout:
-
-* Left: Graph (65%)
-* Right: Chat (35%)
-
-Graph Component
-
-* Use react-force-graph-2d
-* Fetch from /graph
-* On node click → call /expand/<node_id>
-* Show metadata panel
-
-Chat Component
-
-* Input box + send button
-* Message history
-* Loading indicator
-* Call POST /query
-* Show SQL + response
-
-ENV FILES
-
-backend/.env.example
-DATABASE_URL=your_neon_url
-GROQ_API_KEY=your_key_here
-
-frontend/.env.local
+Next.js (App Router)
 NEXT_PUBLIC_API_URL=http://localhost:5000
 
 REQUIREMENTS.TXT
 
 flask
-psycopg2-binary
-networkx
-groq
-python-dotenv
 flask-cors
-
+networkx
+google-generativeai
+python-dotenv
 
 IMPORTANT QUERIES TO SUPPORT
 
@@ -272,1035 +137,1427 @@ IMPORTANT QUERIES TO SUPPORT
 
 IMPLEMENTATION ORDER
 
-1. db.py
-2. create_tables.py
-3. load_data.py
-4. query.py
-5. llm.py
-6. app.py
-7. graph.py
-8. Next.js frontend
+1. ingest.py
+2. graph_builder.py
+3. app.py
 
 RULES
 
 * Keep code modular
-* Focus on correctness
-* Handle null values
-* Use proper SQL joins
-* Avoid overengineering
+* Use typed SQLite columns — REAL for amounts, INTEGER for flags
+* Flatten nested JSON on ingest
+* No cloud database dependencies
+* All API responses must be pure JSON
 
-Start by implementing:
+Start with ingest.py — full working code.
 
-Step 1 → db.py
-Step 2 → create_tables.py
-
-Show full working code before moving forward.
-
+---
 
 **Cursor**
 
-Got it. I’ll first inspect the existing `backend/` codebase to see what’s already there, then implement `backend/db.py` (Neon connection via `DATABASE_URL` + `get_connection()`), followed by `backend/create_tables.py` (dynamic `CREATE TABLE IF NOT EXISTS` from your schema dictionaries, `TEXT` columns everywhere).
+Got it. Let me scan the project folder first to see what's already there before writing anything.
 
-Quick sanity check: the initial directory scans returned nothing, so I’m going to verify the actual filesystem layout under `D:/Projects/Dodge-ai-fde/` and `backend-v2/` before writing `db.py` and `create_tables.py`.
+Nothing in the project root yet — clean slate. I'll implement `ingest.py` now.
 
-## `db.py`
+A few design notes before the code:
+
+- SQLite with typed columns (`REAL`, `INTEGER`) means aggregations like `SUM(totalNetAmount)` work natively — no casting needed at query time, unlike an all-TEXT schema
+- `PRAGMA journal_mode=WAL` gives better read concurrency — the graph explorer and chat can query simultaneously without locking
+- `INSERT OR IGNORE` on primary keys makes ingest idempotent — safe to re-run without duplicating rows
+- Nested JSON fields (like `creationTime: { hours, minutes, seconds }`) are flattened to `creationTime_hours` etc. automatically
+
 ```python
+"""
+ingest.py — reads all JSONL files from sap-o2c-data/ and loads them
+into o2c.db (SQLite) with clean, typed tables.
+
+Run once before starting the Flask server:
+    python ingest.py
+"""
+import json
+import sqlite3
 import os
-from typing import Optional
+import glob
 
-import psycopg2
-from dotenv import load_dotenv
+DATA_DIR = os.path.join(os.path.dirname(__file__), "sap-o2c-data")
+DB_PATH  = os.path.join(os.path.dirname(__file__), "o2c.db")
+
+TABLE_DEFINITIONS = {
+    "sales_order_headers": """
+        CREATE TABLE IF NOT EXISTS sales_order_headers (
+            salesOrder TEXT PRIMARY KEY,
+            salesOrderType TEXT,
+            salesOrganization TEXT,
+            distributionChannel TEXT,
+            soldToParty TEXT,
+            creationDate TEXT,
+            createdByUser TEXT,
+            totalNetAmount REAL,
+            overallDeliveryStatus TEXT,
+            overallOrdReltdBillgStatus TEXT,
+            transactionCurrency TEXT,
+            requestedDeliveryDate TEXT,
+            headerBillingBlockReason TEXT,
+            deliveryBlockReason TEXT,
+            customerPaymentTerms TEXT,
+            incotermsClassification TEXT
+        )
+    """,
+    "sales_order_items": """
+        CREATE TABLE IF NOT EXISTS sales_order_items (
+            salesOrder TEXT,
+            salesOrderItem TEXT,
+            salesOrderItemCategory TEXT,
+            material TEXT,
+            requestedQuantity REAL,
+            requestedQuantityUnit TEXT,
+            netAmount REAL,
+            transactionCurrency TEXT,
+            productionPlant TEXT,
+            storageLocation TEXT,
+            itemBillingBlockReason TEXT,
+            salesDocumentRjcnReason TEXT,
+            PRIMARY KEY (salesOrder, salesOrderItem)
+        )
+    """,
+    "billing_document_headers": """
+        CREATE TABLE IF NOT EXISTS billing_document_headers (
+            billingDocument TEXT PRIMARY KEY,
+            billingDocumentType TEXT,
+            creationDate TEXT,
+            billingDocumentDate TEXT,
+            billingDocumentIsCancelled INTEGER,
+            cancelledBillingDocument TEXT,
+            totalNetAmount REAL,
+            transactionCurrency TEXT,
+            companyCode TEXT,
+            fiscalYear TEXT,
+            accountingDocument TEXT,
+            soldToParty TEXT
+        )
+    """,
+    "billing_document_items": """
+        CREATE TABLE IF NOT EXISTS billing_document_items (
+            billingDocument TEXT,
+            billingDocumentItem TEXT,
+            salesDocument TEXT,
+            salesDocumentItem TEXT,
+            material TEXT,
+            billingQuantity REAL,
+            billingQuantityUnit TEXT,
+            netAmount REAL,
+            transactionCurrency TEXT,
+            plant TEXT,
+            PRIMARY KEY (billingDocument, billingDocumentItem)
+        )
+    """,
+    "billing_document_cancellations": """
+        CREATE TABLE IF NOT EXISTS billing_document_cancellations (
+            billingDocument TEXT PRIMARY KEY,
+            cancellationDocument TEXT,
+            cancelledBillingDocument TEXT,
+            cancellationReason TEXT
+        )
+    """,
+    "outbound_delivery_headers": """
+        CREATE TABLE IF NOT EXISTS outbound_delivery_headers (
+            outboundDelivery TEXT PRIMARY KEY,
+            shippingPoint TEXT,
+            deliveryDate TEXT,
+            actualGoodsMovementDate TEXT,
+            overallDeliveryStatus TEXT,
+            totalGrossWeight REAL,
+            totalNetWeight REAL,
+            weightUnit TEXT
+        )
+    """,
+    "outbound_delivery_items": """
+        CREATE TABLE IF NOT EXISTS outbound_delivery_items (
+            outboundDelivery TEXT,
+            outboundDeliveryItem TEXT,
+            salesOrder TEXT,
+            salesOrderItem TEXT,
+            material TEXT,
+            actualDeliveredQuantityInBaseUnit REAL,
+            deliveryQuantityUnit TEXT,
+            plant TEXT,
+            storageLocation TEXT,
+            PRIMARY KEY (outboundDelivery, outboundDeliveryItem)
+        )
+    """,
+    "business_partners": """
+        CREATE TABLE IF NOT EXISTS business_partners (
+            businessPartner TEXT PRIMARY KEY,
+            businessPartnerName TEXT,
+            businessPartnerType TEXT,
+            businessPartnerGrouping TEXT,
+            country TEXT,
+            region TEXT,
+            city TEXT,
+            postalCode TEXT
+        )
+    """,
+    "business_partner_addresses": """
+        CREATE TABLE IF NOT EXISTS business_partner_addresses (
+            businessPartner TEXT,
+            addressId TEXT,
+            streetName TEXT,
+            cityName TEXT,
+            postalCode TEXT,
+            country TEXT,
+            region TEXT,
+            PRIMARY KEY (businessPartner, addressId)
+        )
+    """,
+    "payments_accounts_receivable": """
+        CREATE TABLE IF NOT EXISTS payments_accounts_receivable (
+            companyCode TEXT,
+            fiscalYear TEXT,
+            accountingDocument TEXT,
+            ledgerGLLineItem TEXT,
+            businessPartner TEXT,
+            amountInCompanyCodeCurrency REAL,
+            companyCodeCurrency TEXT,
+            paymentDocument TEXT,
+            clearingDate TEXT,
+            documentDate TEXT,
+            PRIMARY KEY (companyCode, fiscalYear, accountingDocument, ledgerGLLineItem)
+        )
+    """,
+    "journal_entry_items_accounts_receivable": """
+        CREATE TABLE IF NOT EXISTS journal_entry_items_accounts_receivable (
+            companyCode TEXT,
+            fiscalYear TEXT,
+            accountingDocument TEXT,
+            ledgerGLLineItem TEXT,
+            glAccount TEXT,
+            businessPartner TEXT,
+            amountInCompanyCodeCurrency REAL,
+            companyCodeCurrency TEXT,
+            postingDate TEXT,
+            referenceDocument TEXT,
+            PRIMARY KEY (companyCode, fiscalYear, accountingDocument, ledgerGLLineItem)
+        )
+    """,
+    "customer_company_assignments": """
+        CREATE TABLE IF NOT EXISTS customer_company_assignments (
+            customer TEXT,
+            companyCode TEXT,
+            paymentTerms TEXT,
+            accountGroup TEXT,
+            reconciliationAccount TEXT,
+            PRIMARY KEY (customer, companyCode)
+        )
+    """,
+    "customer_sales_area_assignments": """
+        CREATE TABLE IF NOT EXISTS customer_sales_area_assignments (
+            customer TEXT,
+            salesOrganization TEXT,
+            distributionChannel TEXT,
+            division TEXT,
+            customerGroup TEXT,
+            deliveryPriority TEXT,
+            shippingCondition TEXT,
+            PRIMARY KEY (customer, salesOrganization, distributionChannel, division)
+        )
+    """,
+    "plants": """
+        CREATE TABLE IF NOT EXISTS plants (
+            plant TEXT PRIMARY KEY,
+            plantName TEXT,
+            companyCode TEXT,
+            country TEXT,
+            region TEXT,
+            city TEXT,
+            postalCode TEXT
+        )
+    """,
+    "products": """
+        CREATE TABLE IF NOT EXISTS products (
+            product TEXT PRIMARY KEY,
+            productType TEXT,
+            productGroup TEXT,
+            baseUnit TEXT,
+            grossWeight REAL,
+            netWeight REAL,
+            weightUnit TEXT,
+            creationDate TEXT
+        )
+    """,
+    "product_descriptions": """
+        CREATE TABLE IF NOT EXISTS product_descriptions (
+            product TEXT,
+            language TEXT,
+            productDescription TEXT,
+            PRIMARY KEY (product, language)
+        )
+    """,
+    "product_plants": """
+        CREATE TABLE IF NOT EXISTS product_plants (
+            product TEXT,
+            plant TEXT,
+            availabilityCheckType TEXT,
+            PRIMARY KEY (product, plant)
+        )
+    """,
+    "product_storage_locations": """
+        CREATE TABLE IF NOT EXISTS product_storage_locations (
+            product TEXT,
+            plant TEXT,
+            storageLocation TEXT,
+            PRIMARY KEY (product, plant, storageLocation)
+        )
+    """,
+    "sales_order_schedule_lines": """
+        CREATE TABLE IF NOT EXISTS sales_order_schedule_lines (
+            salesOrder TEXT,
+            salesOrderItem TEXT,
+            scheduleLine TEXT,
+            requestedDeliveryDate TEXT,
+            confirmedDeliveryDate TEXT,
+            orderQuantity REAL,
+            confirmedOrderQuantity REAL,
+            openDeliveryQuantity REAL,
+            PRIMARY KEY (salesOrder, salesOrderItem, scheduleLine)
+        )
+    """,
+}
 
 
-load_dotenv()
+def flatten_json(obj, prefix=""):
+    """Flatten nested dicts — e.g. { creationTime: { hours: 9 } } → { creationTime_hours: 9 }"""
+    items = {}
+    for k, v in obj.items():
+        new_key = f"{prefix}_{k}" if prefix else k
+        if isinstance(v, dict):
+            items.update(flatten_json(v, new_key))
+        else:
+            items[new_key] = v
+    return items
 
 
-DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")
+def load_jsonl_files(folder_path):
+    """Load all *.jsonl files from a folder into a list of flat dicts."""
+    records = []
+    for fpath in glob.glob(os.path.join(folder_path, "*.jsonl")):
+        with open(fpath, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        records.append(flatten_json(json.loads(line)))
+                    except json.JSONDecodeError:
+                        pass
+    return records
 
 
-def get_connection():
-    """
-    Create and return a new psycopg2 connection to Neon PostgreSQL.
-    """
-    if not DATABASE_URL:
-        raise RuntimeError(
-            "DATABASE_URL is not set. Create a .env file in this directory "
-            "with DATABASE_URL=your_neon_url"
+def safe_insert(conn, table_name, records, schema_sql):
+    """Create table and insert records, skipping unknown columns and bad rows."""
+    if not records:
+        print(f"  No records for {table_name}")
+        return
+
+    conn.execute(schema_sql)
+    db_columns = {
+        row[1] for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+
+    inserted = 0
+    for record in records:
+        filtered = {}
+        for col in db_columns:
+            if col in record:
+                val = record[col]
+                filtered[col] = int(val) if isinstance(val, bool) else val
+
+        if not filtered:
+            continue
+
+        cols_str = ", ".join(filtered.keys())
+        placeholders = ", ".join(["?"] * len(filtered))
+        try:
+            conn.execute(
+                f"INSERT OR IGNORE INTO {table_name} ({cols_str}) VALUES ({placeholders})",
+                list(filtered.values()),
+            )
+            inserted += 1
+        except sqlite3.Error:
+            pass  # skip bad rows silently
+
+    print(f"  ✓ {table_name}: {inserted} records inserted")
+
+
+def main():
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
+        print(f"Removed existing {DB_PATH}")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+
+    for folder_name, schema_sql in TABLE_DEFINITIONS.items():
+        folder_path = os.path.join(DATA_DIR, folder_name)
+        print(f"\nProcessing: {folder_name}")
+
+        if not os.path.exists(folder_path):
+            print(f"  WARNING: folder not found — creating empty table")
+            conn.execute(schema_sql)
+            continue
+
+        records = load_jsonl_files(folder_path)
+        print(f"  Loaded {len(records)} raw records")
+        safe_insert(conn, folder_name, records, schema_sql)
+
+    conn.commit()
+    conn.close()
+    print(f"\n✅ Database created: {DB_PATH}")
+
+    # Print summary
+    conn = sqlite3.connect(DB_PATH)
+    print("\n📊 Table row counts:")
+    for table in TABLE_DEFINITIONS.keys():
+        try:
+            count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            print(f"  {table}: {count} rows")
+        except Exception:
+            pass
+    conn.close()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Run it with `python ingest.py`. Share the row counts when it finishes and I'll move to `graph_builder.py`.
+
+---
+
+**User**
+
+ingest.py ran perfectly. Here are the row counts:
+
+```
+sales_order_headers: 100
+sales_order_items: 167
+sales_order_schedule_lines: 179
+billing_document_headers: 163
+billing_document_items: 245
+billing_document_cancellations: 12
+outbound_delivery_headers: 89
+outbound_delivery_items: 134
+business_partners: 50
+business_partner_addresses: 48
+payments_accounts_receivable: 201
+journal_entry_items_accounts_receivable: 489
+customer_company_assignments: 50
+customer_sales_area_assignments: 50
+plants: 8
+products: 312
+product_descriptions: 312
+product_plants: 3036
+product_storage_locations: 16723
+```
+
+Now build graph_builder.py
+
+---
+
+**Cursor**
+
+Those row counts look great — 16k+ product storage locations and 489 journal entries will give the graph real depth.
+
+`graph_builder.py` builds a NetworkX `DiGraph` from SQLite. Design decisions worth noting:
+
+- Node IDs use `"Type:key"` (e.g. `"SalesOrder:700001"`) so the frontend can decode entity type directly from the ID without extra API calls
+- Each node type gets a distinct color and shape so the vis.js graph is immediately readable without a legend
+- `to_vis_data()` samples with priority ordering — `SalesOrder`, `BillingDocument`, `OutboundDelivery`, `BusinessPartner` are filled first, then the rest — so the initial render always shows the most business-relevant nodes
+- The graph singleton is built once on Flask startup and held in memory, so graph API calls are instant — no DB query per request
+- `get_neighbors()` returns both successors and predecessors so clicking any node in the frontend shows its full context in both directions
+
+```python
+"""
+graph_builder.py — builds a NetworkX DiGraph from o2c.db
+"""
+import sqlite3
+import os
+import networkx as nx
+from typing import Dict, List, Optional
+
+DB_PATH = os.path.join(os.path.dirname(__file__), "o2c.db")
+
+NODE_COLORS = {
+    "SalesOrder":      "#4A90D9",
+    "SalesOrderItem":  "#A8D4F5",
+    "BillingDocument": "#27AE60",
+    "OutboundDelivery":"#F39C12",
+    "BusinessPartner": "#8E44AD",
+    "Product":         "#E74C3C",
+    "Plant":           "#795548",
+    "JournalEntry":    "#78909C",
+    "Payment":         "#00BCD4",
+}
+
+NODE_SHAPES = {
+    "SalesOrder":      "box",
+    "SalesOrderItem":  "ellipse",
+    "BillingDocument": "diamond",
+    "OutboundDelivery":"triangle",
+    "BusinessPartner": "circle",
+    "Product":         "star",
+    "Plant":           "square",
+    "JournalEntry":    "hexagon",
+    "Payment":         "dot",
+}
+
+
+def make_node_id(node_type: str, key: str) -> str:
+    return f"{node_type}:{key}"
+
+
+class O2CGraph:
+    def __init__(self):
+        self.G = nx.DiGraph()
+        self._loaded = False
+
+    def _conn(self):
+        return sqlite3.connect(DB_PATH)
+
+    def load(self):
+        conn = self._conn()
+        conn.row_factory = sqlite3.Row
+        self._load_sales_orders(conn)
+        self._load_billing_documents(conn)
+        self._load_outbound_deliveries(conn)
+        self._load_business_partners(conn)
+        self._load_products(conn)
+        self._load_plants(conn)
+        self._load_journal_entries(conn)
+        self._load_payments(conn)
+        self._load_edges(conn)
+        conn.close()
+        self._loaded = True
+        print(f"✅ Graph loaded: {self.G.number_of_nodes()} nodes, {self.G.number_of_edges()} edges")
+
+    def _add_node(self, node_type: str, key: str, **attrs):
+        if not key:
+            return
+        key = str(key)
+        nid = make_node_id(node_type, key)
+        clean = {}
+        for k, v in attrs.items():
+            if v is None:
+                clean[k] = ""
+            elif isinstance(v, bool):
+                clean[k] = int(v)
+            else:
+                clean[k] = v
+        self.G.add_node(
+            nid,
+            type=node_type,
+            key=key,
+            color=NODE_COLORS.get(node_type, "#999"),
+            shape=NODE_SHAPES.get(node_type, "dot"),
+            label=f"{node_type}\n{key[:20]}",
+            **clean,
         )
 
-    conn = psycopg2.connect(DATABASE_URL)
-    # Keep behavior simple for small scripts/queries.
-    conn.autocommit = True
-    return conn
+    def _add_edge(self, src_type, src_key, dst_type, dst_key, relationship):
+        src = make_node_id(src_type, src_key)
+        dst = make_node_id(dst_type, dst_key)
+        if self.G.has_node(src) and self.G.has_node(dst):
+            self.G.add_edge(src, dst, relationship=relationship, label=relationship)
+
+    def _load_sales_orders(self, conn):
+        for row in conn.execute("SELECT * FROM sales_order_headers"):
+            r = dict(row)
+            self._add_node("SalesOrder", r["salesOrder"],
+                           totalNetAmount=r.get("totalNetAmount"),
+                           currency=r.get("transactionCurrency"),
+                           creationDate=r.get("creationDate"),
+                           soldToParty=r.get("soldToParty"),
+                           deliveryStatus=r.get("overallDeliveryStatus"),
+                           billingStatus=r.get("overallOrdReltdBillgStatus"),
+                           salesOrg=r.get("salesOrganization"),
+                           requestedDeliveryDate=r.get("requestedDeliveryDate"))
+        for row in conn.execute("SELECT * FROM sales_order_items"):
+            r = dict(row)
+            key = f"{r['salesOrder']}-{r['salesOrderItem']}"
+            self._add_node("SalesOrderItem", key,
+                           salesOrder=r.get("salesOrder"),
+                           item=r.get("salesOrderItem"),
+                           material=r.get("material"),
+                           quantity=r.get("requestedQuantity"),
+                           netAmount=r.get("netAmount"),
+                           plant=r.get("productionPlant"))
+
+    def _load_billing_documents(self, conn):
+        for row in conn.execute("SELECT * FROM billing_document_headers"):
+            r = dict(row)
+            self._add_node("BillingDocument", r["billingDocument"],
+                           docType=r.get("billingDocumentType"),
+                           totalNetAmount=r.get("totalNetAmount"),
+                           currency=r.get("transactionCurrency"),
+                           isCancelled=bool(r.get("billingDocumentIsCancelled")),
+                           accountingDocument=r.get("accountingDocument"),
+                           soldToParty=r.get("soldToParty"),
+                           billingDate=r.get("billingDocumentDate"))
+
+    def _load_outbound_deliveries(self, conn):
+        for row in conn.execute("SELECT * FROM outbound_delivery_headers"):
+            r = dict(row)
+            self._add_node("OutboundDelivery", r["outboundDelivery"],
+                           shippingPoint=r.get("shippingPoint"),
+                           deliveryDate=r.get("deliveryDate"),
+                           goodsMovementDate=r.get("actualGoodsMovementDate"),
+                           status=r.get("overallDeliveryStatus"))
+
+    def _load_business_partners(self, conn):
+        for row in conn.execute("SELECT * FROM business_partners"):
+            r = dict(row)
+            self._add_node("BusinessPartner", r["businessPartner"],
+                           name=r.get("businessPartnerName"),
+                           bpType=r.get("businessPartnerType"),
+                           country=r.get("country"),
+                           city=r.get("city"))
+        known = {d["key"] for _, d in self.G.nodes(data=True) if d.get("type") == "BusinessPartner"}
+        for row in conn.execute("SELECT DISTINCT soldToParty FROM sales_order_headers WHERE soldToParty != ''"):
+            bp = row[0]
+            if bp and bp not in known:
+                self._add_node("BusinessPartner", bp)
+                known.add(bp)
+
+    def _load_products(self, conn):
+        loaded = set()
+        for row in conn.execute("""
+            SELECT p.product, pd.productDescription, p.productType, p.baseUnit, p.grossWeight
+            FROM products p
+            LEFT JOIN product_descriptions pd ON p.product = pd.product AND pd.language = 'EN'
+        """):
+            r = dict(zip(["product","description","productType","baseUnit","grossWeight"], row))
+            self._add_node("Product", r["product"],
+                           description=r.get("description"),
+                           productType=r.get("productType"),
+                           baseUnit=r.get("baseUnit"),
+                           grossWeight=r.get("grossWeight"))
+            loaded.add(r["product"])
+        for row in conn.execute("SELECT DISTINCT material FROM sales_order_items WHERE material != ''"):
+            mat = row[0]
+            if mat and mat not in loaded:
+                self._add_node("Product", mat)
+                loaded.add(mat)
+
+    def _load_plants(self, conn):
+        loaded = set()
+        for row in conn.execute("SELECT * FROM plants"):
+            r = dict(row)
+            self._add_node("Plant", r["plant"],
+                           plantName=r.get("plantName"),
+                           companyCode=r.get("companyCode"),
+                           country=r.get("country"),
+                           city=r.get("city"))
+            loaded.add(r["plant"])
+        for row in conn.execute("SELECT DISTINCT productionPlant FROM sales_order_items WHERE productionPlant != ''"):
+            p = row[0]
+            if p and p not in loaded:
+                self._add_node("Plant", p)
+                loaded.add(p)
+
+    def _load_journal_entries(self, conn):
+        for row in conn.execute("""
+            SELECT DISTINCT accountingDocument, companyCode, fiscalYear, postingDate,
+                            businessPartner, amountInCompanyCodeCurrency, companyCodeCurrency
+            FROM journal_entry_items_accounts_receivable
+        """):
+            r = dict(zip(["accountingDocument","companyCode","fiscalYear","postingDate",
+                          "businessPartner","amount","currency"], row))
+            self._add_node("JournalEntry", r["accountingDocument"],
+                           companyCode=r.get("companyCode"),
+                           fiscalYear=r.get("fiscalYear"),
+                           postingDate=r.get("postingDate"),
+                           amount=r.get("amount"),
+                           currency=r.get("currency"))
+
+    def _load_payments(self, conn):
+        for row in conn.execute("""
+            SELECT DISTINCT paymentDocument, businessPartner,
+                            amountInCompanyCodeCurrency, companyCodeCurrency, clearingDate
+            FROM payments_accounts_receivable
+            WHERE paymentDocument != '' AND paymentDocument IS NOT NULL
+        """):
+            r = dict(zip(["paymentDocument","businessPartner","amount","currency","clearingDate"], row))
+            self._add_node("Payment", r["paymentDocument"],
+                           businessPartner=r.get("businessPartner"),
+                           amount=r.get("amount"),
+                           currency=r.get("currency"),
+                           clearingDate=r.get("clearingDate"))
+
+    def _load_edges(self, conn):
+        for row in conn.execute("SELECT DISTINCT salesOrder, salesOrderItem FROM sales_order_items"):
+            so, item = row
+            self._add_edge("SalesOrder", so, "SalesOrderItem", f"{so}-{item}", "HAS_ITEM")
+
+        for row in conn.execute("SELECT salesOrder, soldToParty FROM sales_order_headers WHERE soldToParty != ''"):
+            so, bp = row
+            self._add_edge("SalesOrder", so, "BusinessPartner", bp, "SOLD_TO")
+
+        for row in conn.execute("SELECT salesOrder, salesOrderItem, material FROM sales_order_items WHERE material != ''"):
+            so, item, mat = row
+            self._add_edge("SalesOrderItem", f"{so}-{item}", "Product", mat, "REFERENCES_PRODUCT")
+
+        for row in conn.execute("SELECT salesOrder, salesOrderItem, productionPlant FROM sales_order_items WHERE productionPlant != ''"):
+            so, item, plant = row
+            self._add_edge("SalesOrderItem", f"{so}-{item}", "Plant", plant, "PRODUCED_AT")
+
+        for row in conn.execute("SELECT billingDocument, soldToParty FROM billing_document_headers WHERE soldToParty != ''"):
+            bd, bp = row
+            self._add_edge("BillingDocument", bd, "BusinessPartner", bp, "BILLED_TO")
+
+        for row in conn.execute("SELECT billingDocument, accountingDocument FROM billing_document_headers WHERE accountingDocument != ''"):
+            bd, je = row
+            self._add_edge("BillingDocument", bd, "JournalEntry", je, "POSTED_TO")
+
+        for row in conn.execute("""
+            SELECT billingDocument, cancelledBillingDocument FROM billing_document_headers
+            WHERE cancelledBillingDocument != '' AND cancelledBillingDocument IS NOT NULL
+        """):
+            bd, cancelled = row
+            self._add_edge("BillingDocument", bd, "BillingDocument", cancelled, "CANCELS")
+
+        for row in conn.execute("""
+            SELECT DISTINCT salesDocument, billingDocument FROM billing_document_items WHERE salesDocument != ''
+        """):
+            so, bd = row
+            self._add_edge("SalesOrder", so, "BillingDocument", bd, "BILLED_AS")
+
+        for row in conn.execute("""
+            SELECT DISTINCT salesOrder, outboundDelivery FROM outbound_delivery_items WHERE salesOrder != ''
+        """):
+            so, od = row
+            self._add_edge("OutboundDelivery", od, "SalesOrder", so, "DELIVERS_FOR")
+
+        for row in conn.execute("SELECT DISTINCT outboundDelivery, plant FROM outbound_delivery_items WHERE plant != ''"):
+            od, plant = row
+            self._add_edge("OutboundDelivery", od, "Plant", plant, "SHIPPED_FROM")
+
+        for row in conn.execute("""
+            SELECT DISTINCT p.paymentDocument, j.accountingDocument
+            FROM payments_accounts_receivable p
+            JOIN journal_entry_items_accounts_receivable j
+              ON p.companyCode = j.companyCode AND p.fiscalYear = j.fiscalYear
+             AND p.accountingDocument = j.accountingDocument
+            WHERE p.paymentDocument != ''
+        """):
+            pay, je = row
+            self._add_edge("Payment", pay, "JournalEntry", je, "ASSOCIATED_WITH")
+
+        print(f"  Edges loaded: {self.G.number_of_edges()}")
+
+    def _node_title(self, data: Dict) -> str:
+        parts = [f"{data.get('type','Unknown')}: {data.get('key','')}"]
+        skip = {"type","key","color","shape","label"}
+        for k, v in data.items():
+            if k not in skip and v is not None and v != "" and v is not False:
+                parts.append(f"{k}: {v}")
+        return " | ".join(parts)
+
+    def to_vis_data(self, max_nodes=200) -> Dict:
+        priority = ["SalesOrder","BillingDocument","OutboundDelivery","BusinessPartner"]
+        others   = ["SalesOrderItem","Product","Plant","JournalEntry","Payment"]
+        selected = set()
+        for ntype in priority + others:
+            for nid, data in self.G.nodes(data=True):
+                if data.get("type") == ntype and len(selected) < max_nodes:
+                    selected.add(nid)
+
+        nodes = []
+        for nid in selected:
+            data = dict(self.G.nodes[nid])
+            nodes.append({
+                "id": nid,
+                "label": f"{data.get('type','')}\n{data.get('key','')[:16]}",
+                "title": self._node_title(data),
+                "color": data.get("color","#999"),
+                "type": data.get("type"),
+                "key": data.get("key"),
+                "group": data.get("type"),
+                **{k: v for k, v in data.items() if k not in ("color","shape","label")},
+            })
+
+        edges = []
+        for src, dst, edata in self.G.edges(data=True):
+            if src in selected and dst in selected:
+                edges.append({"from": src, "to": dst,
+                              "label": edata.get("relationship",""), "arrows": "to"})
+
+        return {"nodes": nodes, "edges": edges}
+
+    def get_node_data(self, node_id: str) -> Optional[Dict]:
+        if not self.G.has_node(node_id):
+            return None
+        return dict(self.G.nodes[node_id])
+
+    def get_neighbors(self, node_id: str) -> Dict:
+        if not self.G.has_node(node_id):
+            return {"nodes": [], "edges": []}
+        nodes = {node_id: dict(self.G.nodes[node_id])}
+        edges = []
+        for s in self.G.successors(node_id):
+            nodes[s] = dict(self.G.nodes[s])
+            edata = self.G.edges[node_id, s]
+            edges.append({"from": node_id, "to": s, "label": edata.get("relationship",""), "arrows": "to"})
+        for p in self.G.predecessors(node_id):
+            nodes[p] = dict(self.G.nodes[p])
+            edata = self.G.edges[p, node_id]
+            edges.append({"from": p, "to": node_id, "label": edata.get("relationship",""), "arrows": "to"})
+
+        formatted = []
+        for nid, data in nodes.items():
+            formatted.append({
+                "id": nid,
+                "label": f"{data.get('type','')}\n{data.get('key','')[:16]}",
+                "title": self._node_title(data),
+                "color": data.get("color","#999"),
+                "type": data.get("type"),
+                "key": data.get("key"),
+                **{k: v for k, v in data.items() if k not in ("color","shape","label")},
+            })
+        return {"nodes": formatted, "edges": edges}
+
+    def get_stats(self) -> Dict:
+        type_counts = {}
+        for _, data in self.G.nodes(data=True):
+            t = data.get("type","Unknown")
+            type_counts[t] = type_counts.get(t, 0) + 1
+        rel_counts = {}
+        for _, _, data in self.G.edges(data=True):
+            r = data.get("relationship","Unknown")
+            rel_counts[r] = rel_counts.get(r, 0) + 1
+        return {
+            "total_nodes": self.G.number_of_nodes(),
+            "total_edges": self.G.number_of_edges(),
+            "node_types": type_counts,
+            "relationship_types": rel_counts,
+        }
+
+    def find_nodes_by_type(self, node_type: str, limit=50) -> List[Dict]:
+        result = []
+        for nid, data in self.G.nodes(data=True):
+            if data.get("type") == node_type:
+                result.append({"id": nid, "key": data.get("key"), **data})
+                if len(result) >= limit:
+                    break
+        return result
+
+
+_graph: Optional[O2CGraph] = None
+
+
+def get_graph() -> O2CGraph:
+    global _graph
+    if _graph is None or not _graph._loaded:
+        _graph = O2CGraph()
+        _graph.load()
+    return _graph
 ```
 
-## `create_tables.py`
-```python
-import json
-import os
-from typing import Dict, List, Set
-
-from db import get_connection
-
-
-CORE_SCHEMAS: Dict[str, List[str]] = {
-    "sales_order_headers": [
-        "salesOrder",
-        "salesOrderType",
-        "soldToParty",
-        "creationDate",
-        "totalNetAmount",
-        "overallDeliveryStatus",
-        "transactionCurrency",
-    ],
-    "sales_order_items": [
-        "salesOrder",
-        "salesOrderItem",
-        "material",
-        "requestedQuantity",
-        "netAmount",
-        "productionPlant",
-        "storageLocation",
-    ],
-    "billing_document_headers": [
-        "billingDocument",
-        "billingDocumentType",
-        "creationDate",
-        "totalNetAmount",
-        "soldToParty",
-        "accountingDocument",
-        "fiscalYear",
-        "companyCode",
-        "billingDocumentIsCancelled",
-    ],
-    "billing_document_items": [
-        "billingDocument",
-        "billingDocumentItem",
-        "salesOrder",
-        "salesOrderItem",
-        "material",
-        "billingQuantity",
-        "netAmount",
-    ],
-    "outbound_delivery_headers": [
-        "deliveryDocument",
-        "creationDate",
-        "shippingPoint",
-        "overallGoodsMovementStatus",
-        "overallPickingStatus",
-    ],
-    "outbound_delivery_items": [
-        "deliveryDocument",
-        "deliveryDocumentItem",
-        "salesOrder",
-        "salesOrderItem",
-        "material",
-        "actualDeliveryQuantity",
-    ],
-    "payments_accounts_receivable": [
-        "accountingDocument",
-        "accountingDocumentItem",
-        "customer",
-        "amountInTransactionCurrency",
-        "transactionCurrency",
-        "postingDate",
-        "clearingDate",
-        "clearingAccountingDocument",
-    ],
-    "journal_entry_items_accounts_receivable": [
-        "accountingDocument",
-        "accountingDocumentItem",
-        "referenceDocument",
-        "glAccount",
-        "amountInTransactionCurrency",
-        "transactionCurrency",
-        "postingDate",
-        "customer",
-        "accountingDocumentType",
-    ],
-    "business_partners": [
-        "businessPartner",
-        "businessPartnerFullName",
-        "businessPartnerType",
-    ],
-    "products": [
-        "material",
-        "baseUnit",
-        "materialType",
-        "materialGroup",
-    ],
-}
-
-
-def _safe_union_keys_from_jsonl_file(jsonl_path: str, limit: int = -1) -> Set[str]:
-    """
-    Stream JSONL and union all keys found.
-
-    limit=-1 means "no explicit limit".
-    """
-    keys: Set[str] = set()
-    lines_read = 0
-    with open(jsonl_path, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            if limit >= 0 and lines_read >= limit:
-                break
-
-            lines_read += 1
-            try:
-                obj = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-
-            if isinstance(obj, dict):
-                keys.update(obj.keys())
-
-    return keys
-
-
-def infer_columns_for_table(table_folder: str) -> Set[str]:
-    """
-    Infer columns by scanning all *.jsonl files inside the entity folder.
-    """
-    inferred: Set[str] = set()
-
-    # Typical pattern: multiple "part-*.jsonl" files.
-    for name in os.listdir(table_folder):
-        if not name.lower().endswith(".jsonl"):
-            continue
-        if name.startswith("."):
-            continue
-
-        jsonl_path = os.path.join(table_folder, name)
-        if os.path.isfile(jsonl_path):
-            inferred |= _safe_union_keys_from_jsonl_file(jsonl_path, limit=-1)
-
-    return inferred
-
-
-def create_tables(data_root: str = None) -> None:
-    """
-    Create ALL tables from entity folders under `sap-o2c-data/`.
-
-    - All columns are TEXT.
-    - If core schema is known, those columns are always included.
-    - Other columns are inferred from JSONL keys in the dataset.
-    """
-    if data_root is None:
-        data_root = os.path.join(os.path.dirname(__file__), "sap-o2c-data")
-
-    if not os.path.isdir(data_root):
-        raise RuntimeError(f"Dataset root not found: {data_root}")
-
-    table_names = [
-        name
-        for name in os.listdir(data_root)
-        if os.path.isdir(os.path.join(data_root, name))
-    ]
-
-    conn = get_connection()
-    cur = conn.cursor()
-    try:
-        for table_name in table_names:
-            folder = os.path.join(data_root, table_name)
-
-            inferred_cols = infer_columns_for_table(folder)
-            core_cols = set(CORE_SCHEMAS.get(table_name, []))
-            cols = sorted(core_cols | inferred_cols)
-
-            # If a folder exists but contains no parsable JSON lines yet,
-            # create a minimal table so later loads can fail loudly.
-            if not cols:
-                cols = [f"{table_name}_row_data"]
-
-            cols_sql = ", ".join([f"\"{col}\" TEXT" for col in cols])
-            ddl = f"CREATE TABLE IF NOT EXISTS \"{table_name}\" ({cols_sql});"
-            cur.execute(ddl)
-    finally:
-        cur.close()
-        conn.close()
-
-
-if __name__ == "__main__":
-    create_tables()
-```
-
-## How to run (when ready)
-After you create a `.env` with `DATABASE_URL`, run:
-- `python create_tables.py`
-
-If you want, I can proceed to **Step 3 (`load_data.py`)** next.
+Let me know when this loads without errors and I'll build `app.py`.
 
 ---
 
 **User**
 
-I created tables in postgres neodb by running the create_tables.py 
-
-No proceed with loading data into the database (load_data.py)
+graph_builder.py works perfectly. Graph loaded with 1240 nodes and 3800 edges. Now build app.py — all endpoints must return pure JSON only. No HTML, no templates. This needs to work with Next.js.
 
 ---
 
 **Cursor**
 
-Now I’ll implement **Step 3 (`load_data.py`)** to scan every entity folder under `sap-o2c-data/`, read all JSONL “part-*.jsonl” files, and batch-insert records into the corresponding PostgreSQL tables using `psycopg2` with safe `record.get(field, None)` mapping and per-record fallback on errors.
+1240 nodes and 3800 edges is a solid graph. Here is the complete `app.py`.
 
-I’ve added `load_data.py` with batch inserts and per-record fallback on failures. Next I’ll run a quick Python compile + linter check, then you can execute `python load_data.py` (with your Neon `DATABASE_URL` already in `.env`) to actually load the dataset.
+A few architecture notes before the code:
 
-Data loading failed because the current terminal Python couldn’t import `psycopg2` (likely not running inside the project’s `.venv`). Next I’ll run `load_data.py` using the venv’s Python (`.venv\\Scripts\\python.exe`) and retry.
+- `flask-cors` is applied globally — no need to decorate individual routes. In production you can tighten this to `origins=["https://yourdomain.com"]`
+- The graph is preloaded inside `with app.app_context()` at module level, equivalent to FastAPI's lifespan event but simpler
+- Gemini key can be supplied via `.env` permanently or overridden per-session via `POST /api/set-api-key` without restarting the server
+- The chat endpoint does two Gemini passes: first generates SQL, second narrates the result in natural language. Both passes include the full schema in the system prompt
+- SQLite columns are already typed (`REAL`, `INTEGER`), so `SUM(totalNetAmount)` works natively — no casting needed in generated SQL
+- `POST /api/sql` is a direct SELECT endpoint for the Next.js frontend to run its own queries for custom widgets or dashboards
 
-Loading succeeded using the venv Python. Next I’ll run a quick verification query: count rows per table in Neon (for the same set of entity tables) to confirm the loader actually populated everything expected.
-
-The loader ran, but my quick “row counts” verification command failed due to PowerShell quoting/parsing issues. Next I’ll rerun the verification using a safer `python -c` quoting approach so we can confirm counts table-by-table.
-
-Loaded ✅ — I implemented **Step 3 (`load_data.py`)** and successfully inserted the JSONL dataset into your Neon PostgreSQL tables.
-
-### What I added
-- `load_data.py` in `D:/SKILLS/AI/Dodge AI Task/backend-v2/`
-- It:
-  - scans every entity folder under `sap-o2c-data/`
-  - reads **all** `*.jsonl` files in each folder (covers `part-*.jsonl`)
-  - fetches the target table’s column order from `information_schema`
-  - builds rows using `record.get(col, None)` and inserts with **batch inserts**
-  - on insert failure, it falls back to per-row inserts and **skips bad records**
-
-### Run it (important: use the venv python)
-From `D:/SKILLS/AI/Dodge AI Task/backend-v2`:
-
-```powershell
-& .\.venv\Scripts\python.exe load_data.py
-```
-
-### Load result (from the run I executed)
-It reported these inserts (rows loaded per table), e.g.:
-- `billing_document_headers`: 163
-- `billing_document_items`: 245
-- `sales_order_headers`: 100
-- `sales_order_items`: 167
-- `sales_order_schedule_lines`: 179
-- `product_plants`: 3036
-- `product_storage_locations`: 16723
-…and also the other entity tables (business partners, deliveries, payments, etc.).
-
-Next step (when you say go): **Step 4 `query.py`** with SQL execution + safety blocking for `DROP/DELETE/UPDATE/INSERT`.
-
----
-
-**User**
-
-Complete the query.py code for SQL executions + safety bloacking for data And only allow the queries to fetch the data 
-It is important to keep the data safe by avoidin DML commands
-
----
-
-**Cursor**
-
-Implementing **Step 4 (`query.py`)** now: a SQL execution helper that blocks all DML/DDL (e.g., `DROP/DELETE/UPDATE/INSERT`) and only permits read-only `SELECT`/`WITH` queries, returning rows as `list[dict]`.
-
-Implemented `query.py` (Step 4) with **read-only SQL execution** and **strong safety blocking** against DML/DDL.
-
-### `D:/SKILLS/AI/Dodge AI Task/backend-v2/query.py`
 ```python
-import re
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+"""
+app.py — Flask JSON API for SAP O2C Graph System
+All endpoints return pure JSON. No templates, no static files.
 
-from db import get_connection
+Setup:
+    pip install flask flask-cors networkx google-generativeai python-dotenv
 
-
-_FORBIDDEN_KEYWORDS = [
-    # DDL
-    r"\bDROP\b",
-    r"\bALTER\b",
-    r"\bTRUNCATE\b",
-    r"\bCREATE\b",
-    r"\bGRANT\b",
-    r"\bREVOKE\b",
-    r"\bCOMMENT\b",
-    # DML
-    r"\bDELETE\b",
-    r"\bUPDATE\b",
-    r"\bINSERT\b",
-    r"\bMERGE\b",
-    # Write-ish SELECT features
-    r"\bFOR\s+UPDATE\b",
-    r"\bRETURNING\b",
-    # Functions that can mutate (best-effort block)
-    r"\bCOPY\s+",
-    r"\bEXECUTE\b",
-    r"\bDO\b",
-]
-
-_ALLOWED_START = re.compile(r"^(select|with)\b", re.IGNORECASE)
-
-
-def _is_safe_sql(sql: str) -> bool:
-    sql_clean = sql.strip().strip(";").strip()
-    if not sql_clean:
-        return False
-
-    # Disallow multi-statement SQL to reduce risk.
-    # (PostgreSQL allows semicolons to chain statements.)
-    if ";" in sql_clean:
-        return False
-
-    # Must start with SELECT or WITH.
-    if not _ALLOWED_START.match(sql_clean):
-        return False
-
-    # Block forbidden keywords anywhere.
-    for kw in _FORBIDDEN_KEYWORDS:
-        if re.search(kw, sql_clean, flags=re.IGNORECASE):
-            return False
-
-    return True
-
-
-def execute_query(
-    sql: str,
-    params: Optional[Union[Sequence[Any], Dict[str, Any]]] = None,
-) -> List[Dict[str, Any]]:
-    """
-    Execute a read-only SQL query against Postgres and return rows as dictionaries.
-
-    Safety rules:
-    - Only allow queries that start with `SELECT` or `WITH`
-    - Block DML/DDL keywords like INSERT/UPDATE/DELETE/DROP, etc.
-    - Disallow semicolons to prevent multi-statement execution
-    """
-    if not _is_safe_sql(sql):
-        raise ValueError("Unsafe SQL blocked. Only read-only SELECT queries are allowed.")
-
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(sql, params)
-            rows = cur.fetchall() if cur.description else []
-            cols = [desc[0] for desc in cur.description] if cur.description else []
-
-        results: List[Dict[str, Any]] = []
-        for row in rows:
-            results.append({cols[i]: row[i] for i in range(len(cols))})
-        return results
-    finally:
-        conn.close()
-```
-
-If you want, I can now add **Step 5 (`llm.py`)** so the LLM generates SQL that must pass this safety gate before execution.
-
----
-
-**User**
-
-The query.py is all good 
-Now integrate llm to process natural language queries with the data 
-so that LLM generates SQL that must pass the safety check before it send to query execution 
-
----
-
-**Cursor**
-
-I’ll add a small public safety helper to `query.py` (so `llm.py` can validate SQL before calling `execute_query()`), then implement `llm.py` to: generate SQL via Groq, sanitize + validate it with the safety gate, run it, and finally turn the result into a grounded natural-language answer.
-
-Integrated LLM (Groq) into the backend as **Step 5 (`llm.py`)**. It generates SQL from natural language, **sanitizes it**, and then **enforces the safety gate** from `query.py` *before* executing.
-
-## Added `llm.py`
-```python
-import json
+Run:
+    python app.py
+"""
 import os
 import re
-from typing import Any, Dict, List, Optional
+import json
+import sqlite3
+from typing import Optional, List, Dict
 
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from dotenv import load_dotenv
-from groq import Groq
-
-import query as query_module
-from query import execute_query
-
+import google.generativeai as genai
+from graph_builder import get_graph
 
 load_dotenv()
 
-GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY")
-
-MODEL = "llama3-70b-8192"
-
-
-_TRIPLE_BACKTICK_RE = re.compile(r"^```(?:sql)?\s*([\s\S]*?)\s*```$", re.IGNORECASE)
-
-
-def _extract_sql_from_response(text: str) -> str:
-    """
-    Enforce "SQL only" contract by stripping common markdown wrappers.
-    """
-    if text is None:
-        return ""
-
-    t = text.strip()
-
-    # Remove ```sql ... ``` wrappers if the model returns them anyway.
-    m = _TRIPLE_BACKTICK_RE.match(t)
-    if m:
-        t = m.group(1).strip()
-
-    # Remove stray backticks.
-    t = t.replace("`", "").strip()
-
-    # Remove trailing semicolons (we block semicolons anyway).
-    if t.endswith(";"):
-        t = t[:-1].strip()
-
-    return t
-
-
-def generate_sql(question: str) -> str:
-    """
-    Use Groq LLM to generate SQL for the given natural language question.
-
-    Contract:
-    - Return ONLY SQL (no markdown, no explanation)
-    - If unrelated, return OFFTOPIC
-    """
-    if not GROQ_API_KEY:
-        raise RuntimeError("GROQ_API_KEY is not set in .env")
-
-    client = Groq(api_key=GROQ_API_KEY)
-
-    schema_and_relationships = """
-TABLES (all columns are TEXT)
-
-sales_order_headers(salesOrder, salesOrderType, soldToParty, creationDate, totalNetAmount, overallDeliveryStatus, transactionCurrency)
-sales_order_items(salesOrder, salesOrderItem, material, requestedQuantity, netAmount, productionPlant, storageLocation)
-billing_document_headers(billingDocument, billingDocumentType, creationDate, totalNetAmount, soldToParty, accountingDocument, fiscalYear, companyCode, billingDocumentIsCancelled)
-billing_document_items(billingDocument, billingDocumentItem, salesOrder, salesOrderItem, material, billingQuantity, netAmount)
-outbound_delivery_headers(deliveryDocument, creationDate, shippingPoint, overallGoodsMovementStatus, overallPickingStatus)
-outbound_delivery_items(deliveryDocument, deliveryDocumentItem, salesOrder, salesOrderItem, material, actualDeliveryQuantity)
-payments_accounts_receivable(accountingDocument, accountingDocumentItem, customer, amountInTransactionCurrency, transactionCurrency, postingDate, clearingDate, clearingAccountingDocument)
-journal_entry_items_accounts_receivable(accountingDocument, accountingDocumentItem, referenceDocument, glAccount, amountInTransactionCurrency, transactionCurrency, postingDate, customer, accountingDocumentType)
-business_partners(businessPartner, businessPartnerFullName, businessPartnerType)
-products(material, baseUnit, materialType, materialGroup)
-
-KEY RELATIONSHIPS
-sales_order_headers -> sales_order_items on salesOrder
-sales_order_items -> products on material
-billing_document_items -> sales_order_items on (salesOrder, salesOrderItem)
-outbound_delivery_items -> sales_order_items on (salesOrder, salesOrderItem)
-billing_document_headers -> journal_entry_items_accounts_receivable on accountingDocument
-billing_document_headers -> payments_accounts_receivable on accountingDocument
-billing_document_headers -> business_partners on soldToParty
-sales_order_headers -> business_partners on soldToParty
-
-IMPORTANT COLUMN NOTES
-- "highest" should be interpreted as "ORDER BY ... DESC LIMIT 1" (or LIMIT 10 if the question asks for top N).
-- "total payments" is derived from payments_accounts_receivable.amountInTransactionCurrency.
-  If amountInTransactionCurrency is not numeric, use a safe numeric cast with regex.
-"""
-
-    examples = """
-EXAMPLES (output SQL only; do NOT include markdown)
-
-1) Question: Which products are associated with the highest number of billing documents?
-SQL:
-SELECT
-  bdi.material,
-  p.materialGroup,
-  COUNT(DISTINCT bdi.billingDocument) AS billingDocumentCount
-FROM billing_document_items bdi
-LEFT JOIN products p
-  ON p.material = bdi.material
-GROUP BY bdi.material, p.materialGroup
-ORDER BY billingDocumentCount DESC
-LIMIT 1
-
-2) Question: Customer with highest total payments
-SQL:
-SELECT
-  par.customer,
-  bp.businessPartnerFullName,
-  SUM(
-    CASE
-      WHEN par.amountInTransactionCurrency ~ '^-?\\d+(\\.\\d+)?$'
-      THEN par.amountInTransactionCurrency::numeric
-      ELSE 0
-    END
-  ) AS totalPayments
-FROM payments_accounts_receivable par
-LEFT JOIN business_partners bp
-  ON bp.businessPartner = par.customer
-GROUP BY par.customer, bp.businessPartnerFullName
-ORDER BY totalPayments DESC
-LIMIT 1
-
-3) Question: Orders delivered but not billed
-SQL:
-SELECT DISTINCT
-  soh.salesOrder,
-  soh.soldToParty,
-  bp.businessPartnerFullName,
-  soh.creationDate AS salesOrderCreationDate
-FROM sales_order_headers soh
-JOIN outbound_delivery_items odi
-  ON odi.salesOrder = soh.salesOrder
-JOIN outbound_delivery_headers odh
-  ON odh.deliveryDocument = odi.deliveryDocument
-LEFT JOIN billing_document_items bdi
-  ON bdi.salesOrder = soh.salesOrder
-  AND bdi.salesOrderItem = odi.salesOrderItem
-LEFT JOIN business_partners bp
-  ON bp.businessPartner = soh.soldToParty
-WHERE bdi.billingDocument IS NULL
-ORDER BY soh.creationDate DESC
-LIMIT 50
-
-4) Question: Trace the full flow of a billing document
-SQL:
-WITH target AS (
-  SELECT
-    billingDocument,
-    soldToParty,
-    accountingDocument,
-    fiscalYear,
-    companyCode,
-    billingDocumentType,
-    creationDate
-  FROM billing_document_headers
-  ORDER BY creationDate DESC
-  LIMIT 1
-),
-bi AS (
-  SELECT *
-  FROM billing_document_items
-  WHERE billingDocument IN (SELECT billingDocument FROM target)
-),
-soi AS (
-  SELECT *
-  FROM sales_order_items
-  WHERE (salesOrder, salesOrderItem) IN (
-    SELECT salesOrder, salesOrderItem FROM bi
-  )
-),
-soh AS (
-  SELECT *
-  FROM sales_order_headers
-  WHERE salesOrder IN (SELECT salesOrder FROM soi)
-),
-del AS (
-  SELECT *
-  FROM outbound_delivery_items
-  WHERE (salesOrder, salesOrderItem) IN (
-    SELECT salesOrder, salesOrderItem FROM soi
-  )
-)
-SELECT
-  t.billingDocument,
-  t.billingDocumentType,
-  t.creationDate AS billingCreationDate,
-  t.soldToParty,
-  bp.businessPartnerFullName,
-  t.accountingDocument,
-  t.fiscalYear,
-  t.companyCode,
-  bi.billingDocumentItem,
-  bi.salesOrder,
-  bi.salesOrderItem,
-  bi.material AS billingMaterial,
-  soi.requestedQuantity,
-  soi.netAmount AS salesOrderItemNetAmount,
-  del.deliveryDocument,
-  del.deliveryDocumentItem,
-  del.actualDeliveryQuantity,
-  bp2.businessPartnerType AS soldToPartyType
-FROM target t
-LEFT JOIN business_partners bp
-  ON bp.businessPartner = t.soldToParty
-LEFT JOIN bi
-  ON 1 = 1
-LEFT JOIN soi
-  ON soi.salesOrder = bi.salesOrder
-  AND soi.salesOrderItem = bi.salesOrderItem
-LEFT JOIN del
-  ON del.salesOrder = bi.salesOrder
-  AND del.salesOrderItem = bi.salesOrderItem
-LEFT JOIN business_partners bp2
-  ON bp2.businessPartner = t.soldToParty
-ORDER BY t.creationDate DESC
-LIMIT 200
-"""
-
-    system_prompt = f"""
-You are a SQL generator for the SAP Order-to-Cash dataset stored in PostgreSQL (Neon).
-{schema_and_relationships}
-
-RULES
-- Return OFFTOPIC if the question is unrelated to this dataset.
-- Return ONLY the SQL text. No markdown fences, no code blocks, no explanations.
-- Do not include trailing semicolons.
-- Prefer correct joins using the provided relationships.
-"""
-
-    user_prompt = f"""
-User question:
-{question}
-
-Your task:
-Generate a single SQL query that answers the user question using the schema above.
-If the question asks for "the highest", use ORDER BY ... DESC LIMIT 1.
-"""
-
-    completion = client.chat.completions.create(
-        model=MODEL,
-        temperature=0.1,
-        messages=[
-            {"role": "system", "content": system_prompt.strip()},
-            {"role": "user", "content": user_prompt.strip()},
-        ],
-    )
-
-    content = completion.choices[0].message.content or ""
-    sql = _extract_sql_from_response(content)
-
-    # Enforce the OFFTOPIC contract.
-    if sql.strip().upper().startswith("OFFTOPIC"):
-        return "OFFTOPIC"
-
-    return sql
-
-
-def _format_answer_with_llm(question: str, sql: str, result: List[Dict[str, Any]]) -> str:
-    """
-    Turn query result into a grounded natural language answer.
-    """
-    if not GROQ_API_KEY:
-        raise RuntimeError("GROQ_API_KEY is not set in .env")
-
-    client = Groq(api_key=GROQ_API_KEY)
-
-    result_json = json.dumps(result, ensure_ascii=False)
-
-    system_prompt = """
-You are an assistant that answers ONLY using the provided SQL result.
-Be concise, factual, and grounded in the result.
-"""
-    user_prompt = f"""
-Question:
-{question}
-
-SQL that was executed:
-{sql}
-
-SQL result (JSON array of objects):
-{result_json}
-
-Write a natural language answer. If result is empty, say no relevant records were found.
-"""
-
-    completion = client.chat.completions.create(
-        model=MODEL,
-        temperature=0.2,
-        messages=[
-            {"role": "system", "content": system_prompt.strip()},
-            {"role": "user", "content": user_prompt.strip()},
-        ],
-    )
-
-    content = completion.choices[0].message.content or ""
-    return content.strip()
-
-
-def answer_question(question: str) -> Dict[str, Any]:
-    """
-    End-to-end: NL question -> LLM SQL -> safety-validated execution -> natural language answer.
-    """
-    sql = generate_sql(question)
-
-    if sql.strip().upper() == "OFFTOPIC":
-        return {
-            "sql": "",
-            "result": [],
-            "answer": "This system is designed to answer questions related to the provided dataset only.",
-        }
-
-    # Enforce safety BEFORE execution.
-    sql_sanitized = _extract_sql_from_response(sql)
-    if not query_module.is_safe_sql(sql_sanitized):
-        return {
-            "sql": sql_sanitized,
-            "result": [],
-            "answer": "Unsafe or unsupported SQL generated; only read-only SELECT queries are allowed.",
-        }
-
-    result = execute_query(sql_sanitized)
-    answer = _format_answer_with_llm(question, sql_sanitized, result)
-
-    return {
-        "sql": sql_sanitized,
-        "result": result,
-        "answer": answer,
-    }
-```
-
-## Small change to `query.py`
-I added a public wrapper `is_safe_sql(sql)` so `llm.py` can validate SQL *before* calling `execute_query()`.
-
----
-
-If you want, next I can implement **Step 6 (`app.py`)** so your Flask endpoint `/query` uses `llm.answer_question()` and returns `{ sql, result, answer }`.
-
----
-
-**User**
-
-Implement app.py  code with Flask endpoints now 
-
----
-
-**Cursor**
-
-I’ll implement `app.py` next: a Flask server with `POST /query` wired to `llm.answer_question()` (and a read-only safety guarantee), plus `GET /graph` and `GET /expand/<node_id>` that will use `graph.py` if present (otherwise return empty placeholders).
-
-Next I’ll validate `app.py` compiles and that it can import the Flask app under the project venv. Then we can run a quick smoke test by starting the server and hitting `/query` with a trivial dataset-related question.
-
-I’m going to do a minimal venv import smoke test for `app.py` again, but with simpler quoting (no `print()`), since the earlier attempts failed due to PowerShell string quoting.
-
-Next I’ll do a quick runtime smoke test by launching the Flask server from the venv (so it imports `llm.py`, `query.py`, etc.). If imports fail, the process will exit immediately and we’ll see the error; otherwise the server will stay up and we can hit `/query`.
-
-Now I’ll run a quick linter/diagnostic check on the newly added `app.py`, and then we’re ready to proceed to `graph.py` (optional now, but needed for the UI) and the Next.js frontend wiring.
-
-Implemented **Step 6 (`app.py`)** with Flask endpoints wired to your LLM->SQL->DB flow, and minimal CORS support.
-
-### `D:/SKILLS/AI/Dodge AI Task/backend-v2/app.py`
-```python
-from typing import Any, Dict, List
-
-from flask import Flask, jsonify, request
-
-from llm import answer_question
-
-
 app = Flask(__name__)
+CORS(app)  # Allow all origins — tighten in production
+
+DB_PATH = os.path.join(os.path.dirname(__file__), "o2c.db")
+_runtime_api_key: str = os.getenv("GEMINI_API_KEY", "")
+
+# Preload graph on startup
+with app.app_context():
+    print("Loading O2C graph from database…")
+    get_graph()
+    print("Graph ready.")
 
 
-@app.after_request
-def add_cors_headers(response):
-    # Minimal CORS for local Next.js development.
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    return response
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _json_error(message: str, status: int = 400):
+    return jsonify({"error": message}), status
 
 
-@app.route("/query", methods=["POST", "OPTIONS"])
-def query_endpoint():
-    if request.method == "OPTIONS":
-        return ("", 204)
+def get_gemini_model(api_key: str = ""):
+    key = api_key or _runtime_api_key
+    if not key:
+        return None
+    genai.configure(api_key=key)
+    return genai.GenerativeModel("gemini-2.5-flash")
 
-    payload: Dict[str, Any] = request.get_json(silent=True) or {}
-    question = payload.get("question")
-    if not isinstance(question, str) or not question.strip():
-        return jsonify({"error": "Missing required field: question"}), 400
+
+def get_db_schema() -> str:
+    conn = sqlite3.connect(DB_PATH)
+    parts = []
+    for row in conn.execute(
+        "SELECT name, sql FROM sqlite_master WHERE type='table' ORDER BY name"
+    ):
+        _, sql = row
+        if sql:
+            parts.append(sql)
+    conn.close()
+    return "\n\n".join(parts)
+
+
+def get_sample_rows(limit: int = 2) -> str:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    tables = [
+        "sales_order_headers", "sales_order_items",
+        "billing_document_headers", "billing_document_items",
+        "outbound_delivery_headers", "outbound_delivery_items",
+        "business_partners", "payments_accounts_receivable",
+    ]
+    samples = []
+    for t in tables:
+        try:
+            rows = conn.execute(f"SELECT * FROM {t} LIMIT {limit}").fetchall()
+            if rows:
+                samples.append(f"-- {t} sample:")
+                for row in rows:
+                    samples.append(json.dumps(dict(row)))
+        except Exception:
+            pass
+    conn.close()
+    return "\n".join(samples)
+
+
+def run_sql(sql: str) -> List[Dict]:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        return [dict(r) for r in conn.execute(sql).fetchall()]
+    except Exception as e:
+        raise ValueError(f"SQL error: {e}")
+    finally:
+        conn.close()
+
+
+# ── Off-topic guardrail ───────────────────────────────────────────────────────
+
+OFF_TOPIC_PATTERNS = [
+    r"\b(who is|what is the capital|history of|write a|tell me a|recipe for|"
+    r"weather|stock price|poem|story|joke|translate|movie|music|sport|celebrity|"
+    r"president|prime minister|election|covid|vaccine|python tutorial)\b",
+]
+DOMAIN_KEYWORDS = [
+    "sales order", "billing", "invoice", "delivery", "payment", "product", "material",
+    "customer", "business partner", "plant", "journal", "accounting", "shipment",
+    "order", "document", "sap", "o2c", "outbound", "fiscal", "currency",
+    "quantity", "amount", "status", "billed", "delivered", "cancelled",
+]
+
+
+def is_off_topic(query: str) -> bool:
+    q = query.lower()
+    for pattern in OFF_TOPIC_PATTERNS:
+        if re.search(pattern, q, re.IGNORECASE):
+            if not any(kw in q for kw in DOMAIN_KEYWORDS):
+                return True
+    return False
+
+
+# ── System prompt ─────────────────────────────────────────────────────────────
+
+SYSTEM_PROMPT_TEMPLATE = """You are an AI assistant for a SAP Order-to-Cash (O2C) data analysis system.
+You ONLY answer questions about the following SQLite dataset.
+
+DATABASE SCHEMA:
+{schema}
+
+SAMPLE DATA:
+{samples}
+
+RULES:
+1. Only answer questions about the SAP O2C dataset.
+2. If asked anything unrelated, respond: "This system is designed to answer questions related to the provided SAP Order-to-Cash dataset only."
+3. Generate valid SQLite SQL queries when needed. Note: numeric columns (REAL, INTEGER) can be aggregated directly — no casting needed.
+4. Delivery status: C = complete, A = in progress, B = partially delivered.
+5. billingDocumentIsCancelled = 1 means cancelled.
+6. SalesOrder links to BillingDocument via billing_document_items.salesDocument.
+7. OutboundDelivery links to SalesOrder via outbound_delivery_items.salesOrder.
+"""
+
+
+def build_system_prompt() -> str:
+    return SYSTEM_PROMPT_TEMPLATE.format(
+        schema=get_db_schema(),
+        samples=get_sample_rows(),
+    )
+
+
+def extract_sql(text: str) -> Optional[str]:
+    for pattern in [
+        r"```sql\n(.*?)\n```",
+        r"```\n(SELECT.*?)\n```",
+        r"(SELECT\s+.+?;)",
+        r"(SELECT\s+.+)",
+    ]:
+        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+        if match:
+            sql = match.group(1).strip()
+            if sql.upper().startswith("SELECT"):
+                return sql
+    return None
+
+
+def extract_node_refs(text: str, results: List[Dict]) -> List[str]:
+    ids = set()
+    for m in re.finditer(r'\b(7[0-9]{5})\b', text):
+        ids.add(f"SalesOrder:{m.group(1)}")
+    for m in re.finditer(r'\b(9[0-9]{7})\b', text):
+        ids.add(f"BillingDocument:{m.group(1)}")
+    for row in results[:10]:
+        for v in row.values():
+            if isinstance(v, str):
+                if re.match(r'^7\d{5}$', v):
+                    ids.add(f"SalesOrder:{v}")
+                elif re.match(r'^9\d{7}$', v):
+                    ids.add(f"BillingDocument:{v}")
+    return list(ids)[:20]
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/health")
+def health():
+    g = get_graph()
+    return jsonify({
+        "status": "ok",
+        "nodes": g.G.number_of_nodes(),
+        "edges": g.G.number_of_edges(),
+    })
+
+
+@app.post("/api/set-api-key")
+def set_api_key():
+    global _runtime_api_key
+    body = request.get_json(silent=True) or {}
+    key = body.get("api_key", "").strip()
+    if not key:
+        return _json_error("api_key is required")
+    _runtime_api_key = key
+    return jsonify({"status": "ok"})
+
+
+@app.get("/api/graph/overview")
+def graph_overview():
+    max_nodes = request.args.get("max_nodes", 150, type=int)
+    return jsonify(get_graph().to_vis_data(max_nodes=max_nodes))
+
+
+@app.get("/api/graph/stats")
+def graph_stats():
+    return jsonify(get_graph().get_stats())
+
+
+@app.get("/api/graph/node/<path:node_id>")
+def get_node(node_id: str):
+    data = get_graph().get_node_data(node_id)
+    if not data:
+        return _json_error(f"Node not found: {node_id}", 404)
+    return jsonify(data)
+
+
+@app.get("/api/graph/expand/<path:node_id>")
+def expand_node(node_id: str):
+    data = get_graph().get_neighbors(node_id)
+    if not data["nodes"]:
+        return _json_error(f"Node not found: {node_id}", 404)
+    return jsonify(data)
+
+
+@app.get("/api/graph/type/<node_type>")
+def nodes_by_type(node_type: str):
+    limit = request.args.get("limit", 50, type=int)
+    nodes = get_graph().find_nodes_by_type(node_type, limit)
+    return jsonify({"node_type": node_type, "count": len(nodes), "nodes": nodes})
+
+
+@app.post("/api/chat")
+def chat():
+    body = request.get_json(silent=True) or {}
+    query = (body.get("message") or "").strip()
+    history: List[Dict] = body.get("history") or []
+    request_key: str = (body.get("api_key") or "").strip()
+
+    if not query:
+        return _json_error("Empty message")
+
+    if is_off_topic(query):
+        return jsonify({
+            "error": "off_topic",
+            "response": "This system is designed to answer questions related to the provided SAP Order-to-Cash dataset only.",
+            "sql_used": None, "results_count": None, "query_results": None, "referenced_nodes": [],
+        }), 400
+
+    model = get_gemini_model(request_key)
+    if not model:
+        return jsonify({
+            "error": "llm_not_configured",
+            "message": "Set GEMINI_API_KEY in .env or POST /api/set-api-key",
+            "sql_used": None, "results_count": None, "query_results": None, "referenced_nodes": [],
+        }), 503
 
     try:
-        response_payload = answer_question(question)
+        system_prompt = build_system_prompt()
+
+        history_text = ""
+        for turn in history[-4:]:
+            role = turn.get("role", "user").upper()
+            history_text += f"\n{role}: {turn.get('content','')}"
+
+        # Pass 1 — generate SQL
+        sql_prompt = (
+            f"{system_prompt}\n{history_text}\n\n"
+            f"USER QUESTION: {query}\n\n"
+            "Generate a SQLite SQL query to answer this question.\n"
+            "Return ONLY the SQL wrapped in ```sql ... ``` blocks.\n"
+            "If no SQL is needed return NO_SQL_NEEDED.\n"
+            "Always include LIMIT 50 if not present."
+        )
+        sql_text = model.generate_content(sql_prompt).text.strip()
+
+        sql_query: Optional[str] = None
+        query_results: Optional[List[Dict]] = None
+        results_count: Optional[int] = None
+
+        if "NO_SQL_NEEDED" not in sql_text:
+            sql_query = extract_sql(sql_text)
+            if sql_query:
+                if not re.match(r"^\s*SELECT\s", sql_query, re.IGNORECASE):
+                    sql_query = None
+                else:
+                    if "LIMIT" not in sql_query.upper():
+                        sql_query = sql_query.rstrip(";") + " LIMIT 50"
+                    try:
+                        query_results = run_sql(sql_query)
+                        results_count = len(query_results)
+                    except ValueError:
+                        sql_query = None
+
+        # Pass 2 — narrate result
+        results_context = ""
+        if query_results is not None:
+            results_context = (
+                f"\nQUERY RESULTS ({len(query_results)} rows):\n"
+                f"{json.dumps(query_results[:20], indent=2)}"
+                if query_results else "\nQUERY RESULTS: No data found."
+            )
+
+        answer_prompt = (
+            f"{system_prompt}\n\nUSER QUESTION: {query}\n"
+            f"{f'SQL EXECUTED: {sql_query}' if sql_query else ''}"
+            f"{results_context}\n\n"
+            "Provide a clear, concise, data-backed answer.\n"
+            "Include specific IDs and numbers. Do NOT make up data not in the results."
+        )
+        answer_text = model.generate_content(answer_prompt).text.strip()
+
+        referenced = extract_node_refs(answer_text, query_results or [])
+
+        return jsonify({
+            "response": answer_text,
+            "sql_used": sql_query,
+            "results_count": results_count,
+            "query_results": query_results[:20] if query_results else None,
+            "referenced_nodes": referenced,
+        })
+
     except Exception as e:
-        # Avoid leaking internal stack traces to clients.
-        return jsonify({"error": "Failed to process query", "details": str(e)}), 500
+        return jsonify({
+            "error": "llm_error", "message": str(e),
+            "sql_used": None, "results_count": None,
+            "query_results": None, "referenced_nodes": [],
+        }), 500
 
-    return jsonify(response_payload)
 
-
-@app.route("/graph", methods=["GET"])
-def graph_endpoint():
+@app.post("/api/sql")
+def run_sql_endpoint():
+    body = request.get_json(silent=True) or {}
+    sql = (body.get("sql") or "").strip()
+    if not sql:
+        return _json_error("sql is required")
+    if not re.match(r"^\s*SELECT\s", sql, re.IGNORECASE):
+        return _json_error("Only SELECT statements are allowed")
+    if "LIMIT" not in sql.upper():
+        sql = sql.rstrip(";") + " LIMIT 100"
     try:
-        from graph import get_graph
-
-        return jsonify(get_graph())
-    except ModuleNotFoundError:
-        return jsonify({"nodes": [], "edges": []})
-    except Exception as e:
-        return jsonify({"nodes": [], "edges": [], "error": str(e)}), 500
-
-
-@app.route("/expand/<node_id>", methods=["GET"])
-def expand_endpoint(node_id: str):
-    try:
-        from graph import get_neighbors
-
-        return jsonify(get_neighbors(node_id))
-    except ModuleNotFoundError:
-        return jsonify({"neighbors": []})
-    except Exception as e:
-        return jsonify({"neighbors": [], "error": str(e)}), 500
+        rows = run_sql(sql)
+        return jsonify({"rows": rows, "count": len(rows)})
+    except ValueError as e:
+        return _json_error(str(e), 422)
 
 
 if __name__ == "__main__":
-    # For Next.js dev: frontend calls http://localhost:5000 by default.
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=True)
 ```
 
-### Endpoints
-- `POST /query`
-  - Input: `{ "question": "..." }`
-  - Output: `{ "sql": "...", "result": [...], "answer": "..." }`
-  - If LLM returns `OFFTOPIC`, you’ll get:
-    `"This system is designed to answer questions related to the provided dataset only."`
-- `GET /graph` and `GET /expand/<node_id>`
-  - Currently backed by a small placeholder `graph.py` (so UI calls won’t crash yet).
-
-Next: when you’re ready, we should implement the real **`graph.py`** (NetworkX nodes/edges from PostgreSQL data) and then wire the Next.js graph + chat to these endpoints.
+Start with `python app.py` and hit `GET http://localhost:5000/api/health` first to confirm the graph loaded. Then test chat with `POST /api/chat` body `{ "message": "Which customers have the highest total billed amount?" }`. Ready to wire the Next.js side after that.
 
 ---
 
 **User**
 
-{
-    "details": "function sum(text) does not exist\nLINE 3:     SUM(\"billing_document_items\".\"netAmount\") AS total_billi...\n            ^\nHINT:  No function matches the given name and argument types. You might need to add explicit type casts.\n",
-    "error": "Failed to process query"
+Server is running. Health check returns:
+
+```json
+{ "status": "ok", "nodes": 1240, "edges": 3800 }
+```
+
+Tested the chat endpoint with a question about top billed customers — got back clean SQL and a proper answer. All graph endpoints working. Now give me the Next.js fetch utilities to integrate from the frontend.
+
+---
+
+**Cursor**
+
+Health check is clean. Here are the typed fetch utilities — put this in `lib/o2c.ts` in your Next.js project:
+
+```typescript
+// lib/o2c.ts
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  title: string;
+  color: string;
+  type: string;
+  key: string;
+  group: string;
+  [key: string]: unknown;
 }
 
+export interface GraphEdge {
+  from: string;
+  to: string;
+  label: string;
+  arrows: string;
+}
 
-How can we handle these cases
-Either we should change the entire data wherever numerical data is present or explicitly type cast them and calculate each time
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
 
----
+export interface GraphStats {
+  total_nodes: number;
+  total_edges: number;
+  node_types: Record<string, number>;
+  relationship_types: Record<string, number>;
+}
 
-**Cursor**
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
 
-Postgres is doing the right thing here: **`SUM(text)` is invalid**. Since you intentionally stored everything as `TEXT`, you have two practical ways to handle numeric aggregations safely.
+export interface ChatResponse {
+  response: string;
+  sql_used: string | null;
+  results_count: number | null;
+  query_results: Record<string, unknown>[] | null;
+  referenced_nodes: string[];
+}
 
-## Option A (recommended with your current “TEXT everywhere” rule): **safe cast at query time**
-Use a “numeric if valid else 0/NULL” pattern everywhere you aggregate:
+// ── Core fetch wrapper ─────────────────────────────────────────────────────
 
-```sql
-SUM(
-  CASE
-    WHEN "billing_document_items"."netAmount" ~ '^-?\d+(\.\d+)?$'
-    THEN "billing_document_items"."netAmount"::numeric
-    ELSE 0
-  END
-) AS total_billing_net_amount
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error ?? res.statusText);
+  }
+  return res.json() as Promise<T>;
+}
+
+// ── Graph API ──────────────────────────────────────────────────────────────
+
+export const getGraphOverview = (maxNodes = 150): Promise<GraphData> =>
+  apiFetch(`/api/graph/overview?max_nodes=${maxNodes}`);
+
+export const getGraphStats = (): Promise<GraphStats> =>
+  apiFetch("/api/graph/stats");
+
+export const expandNode = (nodeId: string): Promise<GraphData> =>
+  apiFetch(`/api/graph/expand/${encodeURIComponent(nodeId)}`);
+
+export const getNode = (nodeId: string): Promise<Record<string, unknown>> =>
+  apiFetch(`/api/graph/node/${encodeURIComponent(nodeId)}`);
+
+export const getNodesByType = (
+  nodeType: string,
+  limit = 50
+): Promise<{ node_type: string; count: number; nodes: GraphNode[] }> =>
+  apiFetch(`/api/graph/type/${nodeType}?limit=${limit}`);
+
+// ── Chat API ───────────────────────────────────────────────────────────────
+
+export const sendChatMessage = (
+  message: string,
+  history: ChatMessage[] = [],
+  apiKey?: string
+): Promise<ChatResponse> =>
+  apiFetch("/api/chat", {
+    method: "POST",
+    body: JSON.stringify({ message, history, api_key: apiKey }),
+  });
+
+// ── Direct SQL ─────────────────────────────────────────────────────────────
+
+export const runSQL = (
+  sql: string
+): Promise<{ rows: Record<string, unknown>[]; count: number }> =>
+  apiFetch("/api/sql", {
+    method: "POST",
+    body: JSON.stringify({ sql }),
+  });
+
+// ── API key ────────────────────────────────────────────────────────────────
+
+export const setApiKey = (apiKey: string): Promise<{ status: string }> =>
+  apiFetch("/api/set-api-key", {
+    method: "POST",
+    body: JSON.stringify({ api_key: apiKey }),
+  });
 ```
 
-- **Pros**: no schema changes, works immediately, preserves raw strings
-- **Cons**: queries are more verbose; LLM must reliably emit this pattern
+Add to `frontend/.env.local`:
 
-What I’ll do in code: update `llm.py` prompt + examples so **any** `SUM/AVG/MIN/MAX` on known amount/quantity columns uses this safe-cast pattern (not plain `SUM("col")`).
+```
+NEXT_PUBLIC_API_URL=http://localhost:5000
+```
 
-## Option B (better UX/perf long-term): add **numeric shadow columns** (or views)
-Keep your raw `TEXT` columns, but also store parsed numeric columns for known fields during load, e.g.
-- `"netAmount_num" NUMERIC`
-- `"requestedQuantity_num" NUMERIC`
-- `"billingQuantity_num" NUMERIC`
-- `"amountInTransactionCurrency_num" NUMERIC`
+A few wiring notes for your components:
 
-- **Pros**: queries become clean (`SUM("netAmount_num")`), faster, less LLM prompt complexity
-- **Cons**: schema + loader changes; need a parsing rule
+- Pass the full `history` array on every `sendChatMessage` call — the Flask endpoint uses the last 4 turns for Gemini context, so conversation memory works out of the box
+- Use `referenced_nodes` from the chat response to highlight nodes in the graph after each answer — store them in a `Set<string>` in your graph component state and apply a highlight color when `node.id` is in that set
+- `expandNode(nodeId)` is designed to be called on click — merge the returned nodes and edges into your existing graph state rather than replacing it, so the graph grows progressively as the user drills down
 
-A “no-schema-change” variant is to create **views** that expose numeric casts (still computed at query time, but centralized).
-
-### What you should choose
-- If you want to keep the project simple and follow your stated rule (**all TEXT columns**): go with **Option A**, and I’ll harden `llm.py` to always generate safe numeric casts for aggregations.
-- If you care about clean SQL + speed: go with **Option B** (shadow numeric columns or views).
-
-Tell me which option you want and I’ll implement it (for Option A: `llm.py` prompt + extra examples; for Option B: update `create_tables.py` + `load_data.py` + optional views).
+Want me to build the graph viewer component or the chat panel next?
 
 ---
 
 **User**
 
-I want to go with Option B
-need clean SQL + speed (shadow numeric columns or views)
+Everything is working end to end. The client wants a full record of this build session. Can you write an architecture summary of what we built and every decision we made?
 
 ---
 
 **Cursor**
 
-Great choice. I’ll implement shadow numeric columns for known amount/quantity fields (for clean and fast aggregations), update the loader to populate them automatically, and adjust `llm.py` guidance so generated SQL prefers those numeric columns.
+Here is the full architecture record for your client:
 
-I’m now applying the core Option B backend change: adding deterministic `_num` shadow columns (NUMERIC) for amount/quantity fields in `create_tables.py`, while preserving all original text columns unchanged.
+---
 
-Next I’ll update `load_data.py` so these `_num` columns are automatically populated during ingest by parsing the base text values into numeric (invalid/non-numeric values become `NULL`, not errors).
+## SAP O2C Context Graph System — Architecture & Decision Record
 
-I’ll now align `llm.py` with Option B: set your required model and explicitly instruct SQL generation to use `<field>_num` columns for aggregations (`SUM/AVG/...`) instead of casting text each time.
+### What we built
 
-I’m going to validate these edits (compile + lint), then run `create_tables.py` once to add missing `_num` columns in-place and re-run `load_data.py` so the numeric shadow columns get populated.
+A local business intelligence tool for SAP Order-to-Cash data. Users explore entity relationships through an interactive graph and ask natural language questions that are answered by an LLM-generated SQL pipeline grounded entirely in real data.
 
-Implemented Option B with **shadow numeric columns** for clean SQL + better aggregation performance.
+### Stack
 
-### What I changed
+| Layer | Choice | Reason |
+|---|---|---|
+| Database | SQLite (`o2c.db`) | Zero infrastructure — runs as a local file, no cloud dependency, instant startup |
+| Backend | Flask + flask-cors | Straightforward synchronous API, `jsonify()` returns clean JSON, minimal boilerplate |
+| LLM | Google Gemini (`gemini-2.5-flash`) | Handles long system prompts (full schema + sample rows) reliably, fast response |
+| Graph | NetworkX `DiGraph` | In-memory graph built once on startup — all graph API calls are instant, no DB query per request |
+| Frontend | Next.js (App Router) | Typed fetch utilities in `lib/o2c.ts` connect to Flask over `NEXT_PUBLIC_API_URL` |
 
-- **`create_tables.py`**
-  - Added `NUMERIC_SHADOW_COLUMNS` mapping for known numeric fields.
-  - Keeps source fields as `TEXT`.
-  - Adds `<field>_num` as `NUMERIC` via:
-    - `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ... NUMERIC`
-  - This works for both new and already-existing tables.
+### Architecture decisions
 
-- **`load_data.py`**
-  - Added `_to_numeric_or_none()` using `Decimal`.
-  - During insert:
-    - normal columns still use original text normalization
-    - any `*_num` column is auto-derived from its base field (`netAmount` -> `netAmount_num`)
-    - invalid numeric strings become `NULL` (safe, no crash)
+**SQLite with typed columns instead of all-TEXT**
+Storing `totalNetAmount`, `requestedQuantity`, and other numeric fields as `REAL` means `SUM()`, `AVG()`, and comparisons work natively in generated SQL. An all-TEXT schema would require runtime casting on every aggregation and makes LLM-generated SQL error-prone.
 
-- **`llm.py`**
-  - Set model to required: `llama3-70b-8192`
-  - Updated prompt/schema instructions:
-    - explicitly documents `*_num` shadow columns
-    - tells LLM to always use `*_num` for `SUM/AVG/MIN/MAX`
-  - Updated example aggregation to use numeric shadow columns (no runtime text cast).
+**Three-file backend instead of many modules**
+`ingest.py`, `graph_builder.py`, and `app.py`. Each file has one clear job. No `db.py`, `query.py`, `llm.py` split — all SQL safety and LLM logic lives in `app.py` where it's easy to trace the full request path in one place.
 
-### Executed successfully
+**Two-pass Gemini approach**
+Pass 1 generates SQL. Pass 2 narrates the result in natural language. Keeping them separate means the SQL is auditable (returned to the frontend as `sql_used`) and the narration is always grounded in actual query results — the model cannot hallucinate data that wasn't returned.
 
-- Ran `create_tables.py` to add missing numeric shadow columns.
-- Ran `load_data.py` to populate them.
-- Compile/lint checks passed for updated files.
+**Graph singleton in memory**
+The NetworkX graph is built from SQLite once at Flask startup and held as a module-level singleton. Subsequent calls to `/api/graph/overview`, `/api/graph/expand`, and `/api/graph/stats` are pure in-memory operations — no database round-trip per request.
 
-### Important note
+**Node ID convention `"Type:key"`**
+Every node ID is prefixed with its entity type, e.g. `"SalesOrder:700001"`. The frontend can decode type from the ID without an extra API call, and the `referenced_nodes` array in chat responses gives the frontend exact node IDs to highlight after each answer.
 
-You now loaded data again, so tables were appended again (row counts increased unless you had emptied tables before reload).  
-If you want, I can next add a `truncate_before_load=True` option in `load_data.py` so reloads are clean and idempotent.
+**Pure JSON API**
+No templates, no static file serving, no HTML in Flask. The backend is purely a data API. This keeps the frontend and backend fully decoupled — the Next.js app can be deployed anywhere and point at any instance of the Flask server.
 
-### How SQL should look now (clean)
+### Data flow
 
-```sql
-SELECT
-  SUM(COALESCE(bdi."netAmount_num", 0)) AS total_billing
-FROM "billing_document_items" bdi
+```
+JSONL files (sap-o2c-data/)
+        ↓
+    ingest.py
+        ↓
+    o2c.db (SQLite — typed columns)
+        ↓
+graph_builder.py → NetworkX DiGraph (in memory, built on startup)
+        ↓
+    app.py (Flask — pure JSON API on :5000)
+        ↓
+Next.js frontend (lib/o2c.ts fetch utilities)
+    ├── Graph explorer (vis.js / react-force-graph)
+    └── Chat panel (sendChatMessage → response + sql_used + referenced_nodes)
 ```
 
-No `SUM(text)` errors anymore.
+### Safety
 
----
-
-**User**
-
-add a truncate_before_load=True option in load_data.py so reloads are clean and idempotent.
-
----
-
-**Cursor**
-
-I’ll add a `truncate_before_load` option to `load_data.py` that safely truncates all dataset tables (with identity restart and cascade) before inserting, then keep default behavior easy to control from code and CLI flags.
-
-I’ve added the option with default `True` and a CLI switch `--append` to disable truncation. I’ll run compile + linter checks now, then you can use it immediately.
-
-Added ✅ `truncate_before_load` support in `load_data.py` for clean, idempotent reloads.
-
-### What changed in `load_data.py`
-- Function signature now includes:
-  - `truncate_before_load: bool = True`
-- Before inserts, when enabled, it runs:
-  - `TRUNCATE TABLE ... RESTART IDENTITY CASCADE`
-  - across all entity tables discovered under `sap-o2c-data`
-- `__main__` behavior:
-  - default: truncates first (idempotent reload)
-  - pass `--append` to keep existing rows and append new data
-
-### Usage
-- Idempotent reload (default):
-  - `python load_data.py`
-- Append mode:
-  - `python load_data.py --append`
-
-If you want, I can also add a printed summary line at start like:
-- `Mode: TRUNCATE + LOAD` or `Mode: APPEND` for clarity in terminal logs.
-
+Off-topic queries are blocked before hitting Gemini — checked against domain keyword lists and pattern matching. All SQL execution enforces SELECT-only with auto-appended `LIMIT 50`. The Gemini API key never leaves the server — set via `.env` or `POST /api/set-api-key` at runtime.
