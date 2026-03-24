@@ -4,61 +4,58 @@ This project builds a backend for querying SAP Order-to-Cash (O2C) data using na
 
 Workflow:
 
-`User Question -> LLM (Groq) -> SQL -> Safety Check -> PostgreSQL (Neon) -> Results -> Natural Language Answer`
+`User Question → Gemini LLM → SQL → Safety Check → SQLite → Results → Natural Language Answer`
 
-It also exposes a relationship graph API for visualization in a frontend.
+It also exposes a relationship graph API for visualization in a Next.js frontend.
 
----
+
 
 ## 1) Project Overview
 
 The backend supports two core capabilities:
 
-- **Natural language analytics** on SAP O2C data.
-- **Graph exploration** of entity relationships (orders, billing docs, deliveries, customers, products, payments, journal entries).
+- **Natural language analytics** on SAP O2C data — ask questions in plain English and get SQL-grounded answers.
+- **Graph exploration** of entity relationships (orders, billing documents, deliveries, customers, products, payments, journal entries).
 
 Data source is JSONL (one object per line), organized by entity folders under `sap-o2c-data/`.
 
----
+
 
 ## 2) Tech Stack
 
 - Python
-- Flask
-- PostgreSQL (Neon)
-- psycopg2
-- Groq API (`llama3-70b-8192`)
+- Flask + flask-cors
+- SQLite (local file - `o2c.db`)
+- Google Gemini API (`gemini-2.5-flash`)
 - NetworkX
 - python-dotenv
 
----
+
 
 ## 3) Folder Structure
 
 ```text
-backend-v2/
-├── app.py
-├── db.py
-├── create_tables.py
-├── load_data.py
-├── query.py
-├── llm.py
-├── graph.py
+sap-o2c-flask/
+├── app.py               ← Flask JSON API (all endpoints)
+├── graph_builder.py     ← NetworkX graph builder + singleton
+├── ingest.py            ← JSONL → SQLite loader
 ├── requirements.txt
 ├── .env
+├── o2c.db               ← generated after running ingest.py
 └── sap-o2c-data/
-    └── .../
+    ├── sales_order_headers/
+    ├── billing_document_headers/
+    └── .../             ← 19 entity folders, each with *.jsonl part files
 ```
 
----
+
 
 ## 4) Environment Setup
 
-Create `.env` in project root:
+Create `.env` in the project root:
 
 ```env
-DATABASE_URL=your_neon_postgres_connection_string
-GROQ_API_KEY=your_groq_api_key
+GEMINI_API_KEY=your_google_gemini_api_key
 ```
 
 Install dependencies:
@@ -69,170 +66,218 @@ pip install -r requirements.txt
 
 Recommended: use a virtual environment.
 
----
+
 
 ## 5) Data Modeling Strategy
 
-### Base columns
-- All raw source columns are created as **TEXT** for schema flexibility.
+### Typed SQLite columns
 
-### Shadow numeric columns (performance + clean SQL)
-- For known amount/quantity fields, additional `NUMERIC` columns are created with suffix `_num`.
-- Examples:
-  - `"billing_document_items"."netAmount_num"`
-  - `"payments_accounts_receivable"."amountInTransactionCurrency_num"`
-  - `"sales_order_items"."requestedQuantity_num"`
+Unlike an all-TEXT schema, this project uses native SQLite column types:
 
-These are populated during load and used for aggregation (`SUM`, `AVG`, etc.) so SQL stays clean and fast.
+- `TEXT` — identifiers, codes, dates, status fields
+- `REAL` — all amount and quantity fields (e.g. `totalNetAmount`, `requestedQuantity`, `billingQuantity`)
+- `INTEGER` — boolean flags (e.g. `billingDocumentIsCancelled`)
 
----
+This means SQL aggregations like `SUM(totalNetAmount)` and `AVG(requestedQuantity)` work natively — no runtime casting, no `_num` shadow columns needed. The LLM generates cleaner SQL as a result.
+
+### Nested JSON flattening
+
+JSONL records with nested objects are flattened automatically on ingest:
+
+```
+{ "creationTime": { "hours": 9, "minutes": 30 } }
+→ { "creationTime_hours": 9, "creationTime_minutes": 30 }
+```
+
+
 
 ## 6) End-to-End Workflow
 
-## Step A: Database connection (`db.py`)
+### Step A: Data ingestion (`ingest.py`)
 
-- Loads `.env`
-- Reads `DATABASE_URL`
-- Returns psycopg2 connection via `get_connection()`
+- Scans all 19 entity folders under `sap-o2c-data/`
+- Reads every `*.jsonl` part file per folder
+- Flattens nested JSON objects automatically
+- Creates typed SQLite tables with `CREATE TABLE IF NOT EXISTS`
+- Inserts records using `INSERT OR IGNORE` (idempotent — safe to re-run)
+- Uses `PRAGMA journal_mode=WAL` for better read concurrency
 
-## Step B: Table creation (`create_tables.py`)
-
-- Scans each dataset folder under `sap-o2c-data/`
-- Infers columns from all JSONL part files
-- Creates tables using `CREATE TABLE IF NOT EXISTS`
-- Adds shadow numeric columns using:
-  - `ALTER TABLE ... ADD COLUMN IF NOT EXISTS "<field>_num" NUMERIC`
-
-Run:
+Run once before starting the server:
 
 ```bash
-python create_tables.py
+python ingest.py
 ```
 
-## Step C: Data loading (`load_data.py`)
+Re-running `ingest.py` drops and recreates `o2c.db` from scratch for a clean reload.
 
-- Reads all JSONL files for every entity folder
-- Inserts rows in batches (fast path)
-- Falls back to row-by-row insert on batch failure (robustness)
-- Safely handles missing fields (`record.get(field, None)`)
-- Converts numeric fields into `_num` columns via Decimal parsing
-- Supports idempotent reloads:
-  - default: `truncate_before_load=True`
-  - append mode: `--append`
+### Step B: Graph builder (`graph_builder.py`)
 
-Run (idempotent):
+- Builds a NetworkX `DiGraph` from SQLite data on Flask startup
+- Each entity becomes a typed node: `id = "Type:key"` (e.g. `"SalesOrder:700001"`)
+- Edges are derived from FK relationships across all tables
+- Held as a module-level singleton — all graph API calls are pure in-memory, no DB query per request
+- Exposes: `to_vis_data()`, `get_neighbors()`, `get_stats()`, `find_nodes_by_type()`
 
-```bash
-python load_data.py
+### Step C: API layer (`app.py`)
+
+- Flask app with CORS enabled globally via `flask-cors`
+- Graph preloaded on startup inside `with app.app_context()`
+- Gemini key loaded from `.env` — can also be overridden at runtime via `POST /api/set-api-key`
+- **Two-pass Gemini approach** for chat:
+  - Pass 1 → generate SQL from the question
+  - Pass 2 → narrate the SQL result in natural language
+- All endpoints return pure JSON — no HTML, no templates
+
+
+
+## 7) API Reference
+
+All responses are `Content-Type: application/json`.
+
+### Health
+
+`GET /api/health`
+
+```json
+{ "status": "ok", "nodes": 1240, "edges": 3800 }
 ```
-
-Run (append):
-
-```bash
-python load_data.py --append
-```
-
-## Step D: Safe SQL execution (`query.py`)
-
-- Executes read-only SQL and returns `List[Dict]`
-- Blocks unsafe keywords/operations
-- Allows only queries starting with `SELECT` or `WITH`
-- Blocks multi-statement SQL (`;`)
-
-This prevents accidental DML/DDL operations against production-like data.
-
-## Step E: LLM SQL generation (`llm.py`)
-
-- Uses Groq model: `llama3-70b-8192`
-- Prompt includes schema, relationships, and examples
-- Rules enforced:
-  - return SQL only (or `OFFTOPIC`)
-  - quote case-sensitive identifiers
-  - use `_num` columns for math
-- Flow inside `answer_question(question)`:
-  1. Generate SQL from question
-  2. Handle `OFFTOPIC`
-  3. Safety-check SQL using `query.is_safe_sql`
-  4. Execute query
-  5. Convert DB result to grounded natural language answer
-
-## Step F: API layer (`app.py`)
-
-Flask endpoints:
-
-- `POST /query`
-  - Input: `{ "question": "..." }`
-  - Output:
-    ```json
-    {
-      "sql": "...",
-      "result": [...],
-      "answer": "..."
-    }
-    ```
-- `GET /graph`
-  - Returns full graph for visualization.
-- `GET /expand/<node_id>`
-  - Returns neighbors of a selected node.
-
-## Step G: Graph generation (`graph.py`)
-
-- Builds graph from PostgreSQL using NetworkX.
-- Node format:
-  - `id`: `<type>:<primary_key>`
-  - `type`: entity type
-  - `metadata`: source attributes
-- Edge format:
-  - `source`, `target`, `relation`
-- Implements key O2C relationships across sales, billing, delivery, payments, and journal entries.
 
 ---
 
-## 7) API Examples
+### API Key (runtime override)
 
-### Query
-
-`POST /query`
+`POST /api/set-api-key`
 
 ```json
-{
-  "question": "Top 10 customers by total billing amount"
-}
+// Request
+{ "api_key": "AIza..." }
+
+// Response
+{ "status": "ok" }
 ```
 
-Expected behavior:
-- LLM should generate SQL using `_num` columns for aggregation.
-- SQL passes safety checks.
-- API returns SQL + rows + grounded answer.
+---
 
 ### Graph
 
-`GET /graph`
+`GET /api/graph/overview?max_nodes=150`
 
-Returns:
+Returns sampled nodes + edges in vis.js format:
 
 ```json
 {
   "nodes": [
     {
-      "id": "sales_order:50000001",
-      "type": "sales_order",
-      "metadata": {}
+      "id": "SalesOrder:700001",
+      "label": "SalesOrder\n700001",
+      "color": "#4A90D9",
+      "type": "SalesOrder",
+      "key": "700001",
+      "group": "SalesOrder"
     }
   ],
   "edges": [
     {
-      "source": "sales_order:50000001",
-      "target": "sales_order_item:50000001-10",
-      "relation": "sales_order_to_items"
+      "from": "SalesOrder:700001",
+      "to": "BusinessPartner:10001",
+      "label": "SOLD_TO",
+      "arrows": "to"
     }
   ]
 }
 ```
 
----
+`GET /api/graph/stats`
+
+```json
+{
+  "total_nodes": 1240,
+  "total_edges": 3800,
+  "node_types": { "SalesOrder": 100, "BillingDocument": 163, "..." : "..." },
+  "relationship_types": { "HAS_ITEM": 167, "SOLD_TO": 100, "...": "..." }
+}
+```
+
+`GET /api/graph/node/<node_id>`
+
+Returns full attribute payload for a single node.
+
+`GET /api/graph/expand/<node_id>`
+
+Returns 1-hop neighbourhood (predecessors + successors) for drill-down:
+
+```json
+{ "nodes": [...], "edges": [...] }
+```
+
+`GET /api/graph/type/<node_type>?limit=50`
+
+Lists all nodes of a given type. Types: `SalesOrder`, `SalesOrderItem`, `BillingDocument`, `OutboundDelivery`, `BusinessPartner`, `Product`, `Plant`, `JournalEntry`, `Payment`.
+
+
+
+### Chat
+
+`POST /api/chat`
+
+```json
+// Request
+{
+  "message": "Which customers have the highest total billed amount?",
+  "history": [
+    { "role": "user", "content": "How many sales orders are there?" },
+    { "role": "assistant", "content": "There are 100 sales orders." }
+  ],
+  "api_key": "AIza..."
+}
+
+// Success response
+{
+  "response": "The top customer is ACME Corp (BP 10001) with $450,000 billed.",
+  "sql_used": "SELECT soldToParty, SUM(totalNetAmount) FROM billing_document_headers GROUP BY soldToParty ORDER BY SUM(totalNetAmount) DESC LIMIT 10",
+  "results_count": 10,
+  "query_results": [ { "soldToParty": "10001", "SUM(totalNetAmount)": 450000.0 } ],
+  "referenced_nodes": ["BillingDocument:90000001"]
+}
+
+// Off-topic (400)
+{
+  "error": "off_topic",
+  "response": "This system is designed to answer questions related to the provided SAP Order-to-Cash dataset only."
+}
+
+// No API key (503)
+{
+  "error": "llm_not_configured",
+  "message": "Set GEMINI_API_KEY in .env or POST /api/set-api-key"
+}
+```
+
+
+
+### Direct SQL
+
+`POST /api/sql`
+
+Executes a raw SELECT query. SELECT only — max 100 rows enforced.
+
+```json
+// Request
+{ "sql": "SELECT * FROM sales_order_headers LIMIT 5" }
+
+// Response
+{ "rows": [...], "count": 5 }
+```
+
+
 
 ## 8) Running the Backend
+
+Ingest data (run once):
+
+```bash
+python ingest.py
+```
 
 Start Flask server:
 
@@ -240,54 +285,121 @@ Start Flask server:
 python app.py
 ```
 
-Default URL:
+Default URL: `http://localhost:5000`
 
-- `http://localhost:5000`
+For production:
 
----
+```bash
+gunicorn app:app --bind 0.0.0.0:5000
+```
 
-## 9) Important Guardrails
 
-- No DML/DDL execution through chat (`INSERT`, `UPDATE`, `DELETE`, `DROP`, etc. blocked).
-- Multi-statement SQL blocked.
-- Out-of-scope questions return controlled off-topic message.
-- SQL is grounded to known schema + relationships.
 
----
+## 9) Frontend Integration (Next.js)
 
-## 10) Common Issues and Fixes
+Add to `frontend/.env.local`:
 
-### 1) `column ... does not exist` with camelCase fields
-Cause: unquoted identifiers in PostgreSQL are lowercased.
-Fix: ensure SQL uses quoted identifiers, e.g. `"accountingDocument"`.
+```
+NEXT_PUBLIC_API_URL=http://localhost:5000
+```
 
-### 2) `sum(text) does not exist`
-Cause: aggregating text columns directly.
-Fix: use shadow numeric columns, e.g. `SUM("netAmount_num")`.
+Example fetch utility (`lib/o2c.ts`):
 
-### 3) `Decimal is not JSON serializable`
-Cause: Decimal values in response serialization.
-Fix: convert Decimal safely to string/float before JSON response.
+```typescript
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
-### 4) Duplicate rows after reloading
-Fix: use default load mode (`python load_data.py`) which truncates first.
+export async function getGraphOverview(maxNodes = 150) {
+  const res = await fetch(`${BASE}/api/graph/overview?max_nodes=${maxNodes}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // { nodes, edges }
+}
 
----
+export async function sendChatMessage(message: string, history = []) {
+  const res = await fetch(`${BASE}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // { response, sql_used, results_count, query_results, referenced_nodes }
+}
 
-## 11) Suggested Next Improvements
+export async function expandNode(nodeId: string) {
+  const res = await fetch(`${BASE}/api/graph/expand/${encodeURIComponent(nodeId)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // { nodes, edges }
+}
+```
 
-- Add app-level JSON encoder to auto-handle Decimal globally.
-- Add graph caching (TTL) for faster `/graph` and `/expand`.
-- Add automated tests for:
-  - SQL safety checker
-  - loader numeric parsing
-  - key LLM prompt examples
-- Add pagination for large query results and large graph responses.
+Use `referenced_nodes` from chat responses to highlight graph nodes after each answer. Use `expandNode()` on node click to grow the graph progressively.
 
----
 
-## 12) License / Usage
 
-Use this project for internal analytics and prototyping.  
-For production use, add authentication, stricter rate limiting, and full audit logging.
+## 10) Node Types and Colors
 
+| Type | Color | Description |
+|---|---|---|
+| SalesOrder | `#4A90D9` | SAP sales order header |
+| SalesOrderItem | `#A8D4F5` | Line items within a sales order |
+| BillingDocument | `#27AE60` | Invoice / billing document |
+| OutboundDelivery | `#F39C12` | Shipment / outbound delivery |
+| BusinessPartner | `#8E44AD` | Customer or partner |
+| Product | `#E74C3C` | Material / product |
+| Plant | `#795548` | Production or shipping plant |
+| JournalEntry | `#78909C` | GL / accounting document |
+| Payment | `#00BCD4` | Cleared payment record |
+
+## 11) Edge / Relationship Types
+
+| Relationship | From | To |
+|---|---|---|
+| `HAS_ITEM` | SalesOrder | SalesOrderItem |
+| `SOLD_TO` | SalesOrder | BusinessPartner |
+| `REFERENCES_PRODUCT` | SalesOrderItem | Product |
+| `PRODUCED_AT` | SalesOrderItem | Plant |
+| `BILLED_AS` | SalesOrder | BillingDocument |
+| `BILLED_TO` | BillingDocument | BusinessPartner |
+| `POSTED_TO` | BillingDocument | JournalEntry |
+| `CANCELS` | BillingDocument | BillingDocument |
+| `DELIVERS_FOR` | OutboundDelivery | SalesOrder |
+| `SHIPPED_FROM` | OutboundDelivery | Plant |
+| `ASSOCIATED_WITH` | Payment | JournalEntry |
+
+
+
+## 12) Important Guardrails
+
+- Only `SELECT` and `WITH` queries are executed — `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE` are all blocked.
+- Multi-statement SQL (`;` mid-query) is blocked.
+- Off-topic questions are detected and rejected before the LLM is called.
+- Gemini API key is never exposed to the frontend — set server-side only.
+- All SQL results are capped at 50 rows via auto-appended `LIMIT 50`.
+
+
+## 13) Common Issues and Fixes
+
+### 1) Graph loads 0 nodes
+Cause: `o2c.db` does not exist yet.
+Fix: run `python ingest.py` before starting the server.
+
+### 2) Chat returns `llm_not_configured`
+Cause: `GEMINI_API_KEY` not set.
+Fix: add `GEMINI_API_KEY=...` to `.env` or call `POST /api/set-api-key` at runtime.
+
+### 3) Ingest skips many rows
+Cause: JSONL field names don't match table column names after flattening.
+Fix: check the flatten output — nested keys become `parent_child` format. Verify the `PRAGMA table_info(<table>)` output matches your JSONL keys.
+
+### 4) `OperationalError: no such column`
+Cause: generated SQL references a column name that doesn't match the SQLite schema.
+Fix: SQLite column names are case-sensitive. Check the exact column names in the schema via `GET /api/sql` with `SELECT * FROM <table> LIMIT 1`.
+
+### 5) CORS errors from Next.js
+Cause: Flask not returning CORS headers.
+Fix: confirm `flask-cors` is installed and `CORS(app)` is called before any route definitions in `app.py`.
+
+
+## 15) License / Usage
+
+Use this project for internal analytics and prototyping.
+For production use, add authentication, rate limiting, and full audit logging.

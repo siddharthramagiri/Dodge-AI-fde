@@ -1,7 +1,0 @@
-psycopg2-binary 
-flask 
-python-dotenv 
-groq
-dotenv
-networkx
-gunicorn
